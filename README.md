@@ -34,7 +34,7 @@ pip install -e .
 
 ```bash
 # Quick setup with OpenAI
-sc setup --provider openai --model gpt-4o
+smart-commit setup --provider openai --model gpt-4o
 
 # Or use the short alias
 sc setup --provider openai --model gpt-4o
@@ -46,45 +46,45 @@ sc setup --provider openai --model gpt-4o
 
 ```bash
 # Generate commit message for staged changes
-sc generate
+smart-commit generate
 
 # Add additional context
-sc generate --message "Fixes issue with user authentication"
+smart-commit generate --message "Fixes issue with user authentication"
 
 # Auto-commit without confirmation
-sc generate --auto
+smart-commit generate --auto
 
 # Dry run (generate message only)
-sc generate --dry-run
+smart-commit generate --dry-run
 
 # Non-interactive mode
-sc generate --no-interactive
+smart-commit generate --no-interactive
 ```
 
 ### Configuration Management
 
 ```bash
 # Initialize configuration
-sc config --init
+smart-commit config --init
 
 # Edit configuration
-sc config --edit
+smart-commit config --edit
 
 # Show current configuration
-sc config --show
+smart-commit config --show
 
 # Local repository configuration
-sc config --init --local
+smart-commit config --init --local
 ```
 
 ### Repository Analysis
 
 ```bash
 # Analyze current repository
-sc context
+smart-commit context
 
 # Analyze specific repository
-sc context /path/to/repo
+smart-commit context /path/to/repo
 ```
 
 ## Configuration
@@ -211,30 +211,30 @@ deps = "deps:"
 git add .
 
 # Generate commit message
-sc generate
+smart-commit generate
 ```
 
 ### With Context
 
 ```bash
 # Generate with additional context
-sc generate -m "Resolves GitHub issue #123"
+smart-commit generate -m "Resolves GitHub issue #123"
 
 # Auto-commit
-sc generate --auto
+smart-commit generate --auto
 
 # Verbose output
-sc generate --verbose
+smart-commit generate --verbose
 ```
 
 ### Repository Setup
 
 ```bash
 # Initialize local config for your project
-sc config --init --local
+smart-commit config --init --local
 
 # Analyze your repository
-sc context
+smart-commit context
 ```
 
 ## Environment Variables

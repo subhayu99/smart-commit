@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "smart-commit-ai"
+version = "0.1.0"
+description = "🤖 AI-powered git commit message generator with repository context awareness"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Subhayu Kumar Bala", email = "balasubhayu99@gmail.com"},
+]
+maintainers = [
+    {name = "Subhayu Kumar Bala", email = "balasubhayu99@gmail.com"},
+]
+keywords = [
+    "git", "commit", "ai", "automation", "developer-tools", 
+    "openai", "cli", "productivity", "conventional-commits"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = [
+    "typer>=0.9.0",
+    "openai>=1.56.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",
+    "toml>=0.10.2",
+    "gitpython>=3.1.0",
+    "pathspec>=0.11.0",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/subhayu99/smart-commit"
+Documentation = "https://github.com/subhayu99/smart-commit#readme"
+Repository = "https://github.com/subhayu99/smart-commit"
+"Bug Tracker" = "https://github.com/subhayu99/smart-commit/issues"
+
+[project.scripts]
+smart-commit = "smart_commit.cli:app"
+sc = "smart_commit.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "twine>=4.0.0",
+    "build>=0.10.0",
+]
+anthropic = [
+    "anthropic>=0.25.0",
+]
+all = [
+    "smart-commit-ai[dev,anthropic]",
+]
+
+[tool.hatch.version]
+path = "smart_commit/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["smart_commit"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/smart_commit",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?'

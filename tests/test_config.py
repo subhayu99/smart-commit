@@ -24,6 +24,7 @@ class TestConfigManager:
         """Test saving and loading configuration."""
         config_manager = ConfigManager()
         config_manager.global_config_path = tmp_path / "config.toml"
+        config_manager.local_config_path = tmp_path / "config.toml"
         
         # Create test config
         config = GlobalConfig()

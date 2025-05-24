@@ -32,7 +32,7 @@ config_manager = ConfigManager()
 
 @app.command()
 def generate(
-    message: Optional[str] = typer.Argument(None, help="Additional context for the commit"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Additional context for the commit"),
     auto_commit: bool = typer.Option(False, "--auto", "-a", help="Automatically commit with generated message"),
     show_diff: bool = typer.Option(True, "--show-diff/--no-diff", help="Show the staged diff"),
     interactive: bool = typer.Option(True, "--interactive/--no-interactive", "-i", help="Interactive mode for editing"),

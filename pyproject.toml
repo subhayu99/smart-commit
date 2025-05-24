@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "smart-commit-ai"
-version = "0.1.4"
+version = "0.1.5"
 description = "🤖 AI-powered git commit message generator with repository context awareness"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -90,5 +90,5 @@ include = [
 # Black configuration
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py310']
 include = '\.pyi?'

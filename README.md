@@ -20,14 +20,17 @@ An AI-powered git commit message generator with repository context awareness, bu
 # Install uv if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Clone and install
-uvx install smart
+# Install and run as a tool (system-wide install)
+uv tool install smart-commit-ai
+
+# Use the tool in any repository
+sc generate
 ```
 
 ### Using pip
 
 ```bash
-pip install -e .
+pip install smart-commit-ai
 ```
 
 ## Quick Setup

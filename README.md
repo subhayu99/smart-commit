@@ -6,6 +6,53 @@
 
 An AI-powered git commit message generator with repository context awareness, built with Python and Typer.
 
+## Why Smart Commit?
+
+As developers, we know the importance of good commit messages. They serve as a historical record, help with debugging, facilitate code reviews, and make collaboration seamless. But let's be honest - writing detailed, meaningful commit messages consistently is **hard**.
+
+### The Problem
+
+**Time Pressure & Context Switching**: When you're juggling multiple projects simultaneously, switching between different codebases, technologies, and contexts, it becomes increasingly difficult to craft thoughtful commit messages. What used to be a natural part of your workflow becomes a bottleneck.
+
+**Cognitive Load**: After spending hours deep in code, the last thing you want to do is context-switch to writing prose. Your brain is in "code mode," not "documentation mode."
+
+**Consistency Across Projects**: Each project has its own conventions, tech stack, and commit patterns. Maintaining consistency becomes nearly impossible when you're working on 3-4 different repositories in a single day.
+
+**The Vicious Cycle**: Poor commit messages lead to poor project history. When you need to understand what changed and why (during debugging, code reviews, or onboarding new team members), cryptic messages like "fix stuff" or "update" provide zero value.
+
+### The Solution
+
+Smart Commit understands your repository context - the tech stack, recent commit patterns, file changes, and project structure. It generates meaningful, detailed commit messages that:
+
+- **Capture the "Why"**: Not just what changed, but the reasoning behind the change
+- **Maintain Consistency**: Follows your project's established patterns and conventions
+- **Save Mental Energy**: Let AI handle the prose while you focus on the code
+- **Preserve History**: Create a rich, searchable project timeline that actually helps future you
+
+**Example of the difference:**
+
+Instead of:
+```
+fix auth bug
+update dependencies  
+refactor components
+```
+
+You get:
+```
+fix(auth): resolve JWT token expiration handling
+
+- Fix race condition in token refresh mechanism
+- Add proper error handling for expired tokens  
+- Update token validation middleware
+- Add unit tests for edge cases
+
+This resolves the issue where users were unexpectedly logged out
+during active sessions due to improper token lifecycle management.
+```
+
+Smart Commit turns your commit history into a valuable project resource that tells the story of your codebase evolution.
+
 ## Features
 
 - 🧠 **AI-Powered**: Uses OpenAI GPT and Anthropic Claude models to generate meaningful commit messages
@@ -310,8 +357,6 @@ Recent Commits:
 
 ## Environment Variables
 
-- `SMART_COMMIT_API_KEY`: API key for your AI provider
-- `SMART_COMMIT_PROVIDER`: Default AI provider (openai or anthropic)
 - `EDITOR`: Preferred editor for interactive message editing (default: nano)
 
 ## Troubleshooting
@@ -324,7 +369,6 @@ Recent Commits:
 
 **"API key not configured"**
 - Run `smart-commit setup` to configure your API key
-- Or set the `SMART_COMMIT_API_KEY` environment variable
 
 **"AI provider error"**
 - Verify your API key is valid and has sufficient credits

@@ -62,6 +62,8 @@ Smart Commit turns your commit history into a valuable project resource that tel
 - 🔧 **MCP Server**: Model Context Protocol server for integration with AI assistants
 - 🎯 **Smart Filtering**: Ignore patterns and custom rules per repository
 - 📝 **Interactive Editing**: Edit generated messages before committing
+- 🏗️ **Context Files**: Include project documentation for enhanced understanding
+- 🎨 **Custom Templates**: Configurable commit message formats and examples
 
 ## Installation
 
@@ -102,9 +104,6 @@ pip install smart-commit-ai[all]
 # Quick setup with OpenAI
 smart-commit setup --provider openai --model gpt-4o --api-key your-api-key
 
-# Quick setup with Anthropic Claude
-smart-commit setup --provider anthropic --model claude-3-5-sonnet-20241022 --api-key your-api-key
-
 # Or use the short alias
 sc setup --provider openai --model gpt-4o --api-key your-api-key
 ```
@@ -133,7 +132,7 @@ smart-commit generate --no-interactive
 ### Configuration Management
 
 ```bash
-# Initialize configuration
+# Initialize configuration (with optional sample repo config)
 smart-commit config --init
 
 # Edit configuration
@@ -149,10 +148,10 @@ smart-commit config --init --local
 ### Repository Analysis
 
 ```bash
-# Analyze current repository
+# Shows detailed information about the current repository
 smart-commit context
 
-# Analyze specific repository
+# Shows detailed information about a specific repository
 smart-commit context /path/to/repo
 ```
 
@@ -163,47 +162,89 @@ Smart-commit supports both global and local configurations:
 - **Global**: `~/.config/smart-commit/config.toml`
 - **Local**: `.smart-commit.toml` in your repository
 
-### Example Configuration
+### Enhanced Configuration Options
+
+The configuration now includes enhanced features for better commit message generation:
 
 ```toml
 [ai]
-provider = "openai"  # or "anthropic"
-model = "gpt-4o"     # or "claude-3-5-sonnet-20241022"
+provider = "openai"
+model = "gpt-4o"
 api_key = "your-api-key"
 max_tokens = 500
 temperature = 0.1
 
 [template]
 max_subject_length = 50
+max_recent_commits = 5  # Number of recent commits to analyze
 include_body = true
 include_reasoning = true
 conventional_commits = true
 
-[template.custom_prefixes]
-hotfix = "hotfix:"
-wip = "wip:"
+# Custom example formats for AI guidance
+example_formats = [
+    """feat: add user authentication system
 
+- Implement JWT-based authentication
+- Add login and logout endpoints
+- Include password hashing with bcrypt
+- Add authentication middleware for protected routes
+
+This enables secure user sessions and protects sensitive endpoints from unauthorized access."""
+]
+
+# Enhanced commit type prefixes with descriptions
+[template.custom_prefixes]
+feat = "for new features"
+fix = "for bug fixes"
+docs = "for documentation changes"
+style = "for formatting changes"
+refactor = "for code refactoring"
+test = "for test changes"
+chore = "for maintenance tasks"
+perf = "for performance improvements"
+build = "for build system changes"
+ci = "for CI/CD changes"
+revert = "for reverting changes"
+
+# Repository-specific configuration with enhanced context
 [repositories.my-project]
 name = "my-project"
 description = "My awesome project"
+absolute_path = "/absolute/path/to/project"  # Explicit path for accessing context files globally
 tech_stack = ["python", "react", "docker"]
 ignore_patterns = ["*.log", "node_modules/**"]
-context_files = ["README.md", "CHANGELOG.md"]
+context_files = ["README.md", "CHANGELOG.md"]  # Files included in AI context
 
+# Comprehensive commit conventions
 [repositories.my-project.commit_conventions]
-breaking = "Use BREAKING CHANGE in footer for breaking changes"
-scope = "Use scope in parentheses: feat(auth): add login"
+breaking = "Use BREAKING CHANGE: in footer for breaking changes that require major version bump"
+scope = "Use scope in parentheses after type: feat(auth): add login system"
+subject_case = "Use imperative mood in lowercase: 'add feature' not 'adds feature' or 'added feature'"
+subject_length = "Keep subject line under 50 characters for better readability"
+body_format = "Wrap body at 72 characters, use bullet points for multiple changes"
+body_separation = "Separate subject from body with a blank line"
+present_tense = "Use present tense: 'change' not 'changed' or 'changes'"
+no_period = "Do not end the subject line with a period"
+why_not_what = "Explain why the change was made, not just what was changed"
+atomic_commits = "Make each commit a single logical change"
+test_coverage = "Include test changes when adding new functionality"
+docs_update = "Update documentation when changing public APIs or behavior"
 ```
 
 ## Repository Context Features
 
-Smart-commit automatically detects:
+Smart-commit automatically detects and uses:
 
 - 📊 **Technology Stack**: Languages, frameworks, and tools
 - 🌿 **Branch Information**: Active branches and current branch
-- 📝 **Recent Commits**: Recent commit patterns for consistency
+- 📝 **Recent Commits**: Configurable number of recent commits for pattern analysis
 - 📁 **File Structure**: Repository organization
 - 🔍 **Project Metadata**: README descriptions and project info
+- 📚 **Context Files**: Project documentation included in AI context
+- 🎯 **Absolute Paths**: Precise file location for multi-repo setups
+- 🚫 **Ignore Patterns**: Custom patterns to exclude files from analysis
+- 🗂️ **Commit Conventions**: Project-specific commit message guidelines
 
 ## MCP Server Integration
 
@@ -269,29 +310,47 @@ ignore_patterns = [
 ]
 ```
 
-### Context Files
+### Context Files for Enhanced Understanding
 
-Include specific files for additional context:
+Include specific files for additional AI context:
 
 ```toml
 [repositories.my-project]
+absolute_path = "/home/user/projects/my-project"
 context_files = [
     "README.md",
     "CHANGELOG.md", 
-    "docs/contributing.md"
+    "docs/contributing.md",
+    "API_REFERENCE.md"
 ]
 ```
 
-### Custom Commit Types
+The AI will read these files and use their content to better understand your project structure and generate more relevant commit messages.
 
-Define project-specific commit types:
+### Custom Commit Types with Descriptions
+
+Define project-specific commit types with clear descriptions:
 
 ```toml
 [template.custom_prefixes]
-hotfix = "hotfix:"
-security = "security:"
-deps = "deps:"
+feat = "for new features"
+fix = "for bug fixes"
+hotfix = "for critical production fixes"
+security = "for security-related changes"
+deps = "for dependency updates"
+config = "for configuration changes"
 ```
+
+### Recent Commits Analysis
+
+Configure how many recent commits to analyze for pattern consistency:
+
+```toml
+[template]
+max_recent_commits = 10  # Analyze last 10 commits for patterns
+```
+
+This helps maintain consistency with your existing commit style and conventions.
 
 ## Examples
 
@@ -320,7 +379,7 @@ This change introduces a complete authentication system to secure
 user access and manage sessions effectively.
 ```
 
-### With Context
+### With Enhanced Context
 
 ```bash
 # Generate with additional context
@@ -333,27 +392,53 @@ smart-commit generate --auto
 smart-commit generate --verbose
 ```
 
-### Repository Setup
+### Repository Setup with Context Files
 
 ```bash
 # Initialize local config for your project
 smart-commit config --init --local
+# Will prompt: "Include sample repository configuration? [y/N]"
 
-# Analyze your repository
-smart-commit context
+# This will create configuration including context files
+# Edit .smart-commit.toml to specify your context files:
+
+[repositories.my-project]
+name = "my-project"
+description = "My awesome project description"
+absolute_path = "/full/path/to/project"
+context_files = ["README.md", "docs/ARCHITECTURE.md"]
 ```
 
-Example context output:
-```
-Repository Analysis: my-awesome-app
+### Multi-Repository Workflow
 
-Technology Stack: Python, JavaScript, Docker, PostgreSQL
-Active Branches: main, feature/auth, hotfix/security-patch
-Recent Commits:
-- fix: resolve SQL injection vulnerability
-- feat: add user dashboard
-- docs: update API documentation
+For developers working on multiple repositories:
+
+```toml
+# Global config at ~/.config/smart-commit/config.toml
+
+[repositories.frontend-app]
+name = "frontend-app"
+description = "React frontend application"
+absolute_path = "/home/dev/projects/frontend-app"
+tech_stack = ["react", "typescript", "tailwind"]
+context_files = ["README.md", "package.json"]
+
+[repositories.backend-api]
+name = "backend-api" 
+description = "Python FastAPI backend"
+absolute_path = "/home/dev/projects/backend-api"
+tech_stack = ["python", "fastapi", "postgresql"]
+context_files = ["README.md", "requirements.txt", "docs/API.md"]
+
+[repositories.mobile-app]
+name = "mobile-app"
+description = "React Native mobile application"
+absolute_path = "/home/dev/projects/mobile-app"
+tech_stack = ["react-native", "typescript", "expo"]
+context_files = ["README.md", "app.json", "docs/SETUP.md"]
 ```
+
+This allows Smart Commit to automatically understand the context of whichever repository you're working in and generate appropriate commit messages.
 
 ## Environment Variables
 
@@ -379,6 +464,11 @@ Recent Commits:
 - Run `smart-commit config --init` to create initial configuration
 - Check if the config file exists at `~/.config/smart-commit/config.toml`
 
+**"Context file not found"**
+- Verify the `absolute_path` in your repository configuration is correct
+- Check that context files exist at the specified locations
+- Use relative paths from the repository root if `absolute_path` is not set
+
 ### Debug Mode
 
 ```bash
@@ -387,6 +477,9 @@ smart-commit generate --verbose
 
 # Show configuration details
 smart-commit config --show
+
+# Analyze repository context
+smart-commit context
 ```
 
 ## Development

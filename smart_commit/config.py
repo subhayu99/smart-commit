@@ -31,6 +31,14 @@ example_formats = [
 - Add authentication middleware for protected routes
 
 This enables secure user sessions and protects sensitive endpoints from unauthorized access.""",
+    """fix(database): resolve connection pool exhaustion
+
+- Increase maximum pool size from 10 to 50
+- Add connection timeout handling
+- Implement proper connection cleanup
+- Add monitoring for pool usage
+
+Prevents application crashes during high traffic periods by ensuring adequate database connections.""",
 ]
 
 commit_conventions = {

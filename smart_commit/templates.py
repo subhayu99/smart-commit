@@ -67,7 +67,6 @@ the changes and follows best practices."""
         
         # Determine the repository path
         repo_path = Path(repo_config.absolute_path) if repo_config and repo_config.absolute_path else Path(".")
-        print(f"Using repository path: {repo_path}")
         context_parts.append(f"- **Path:** {repo_path.resolve()}")
         
         # Include context files only if the repository matches

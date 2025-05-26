@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Dict, List, Optional, Set
 
 import git
@@ -132,16 +133,16 @@ class RepositoryAnalyzer:
             except Exception:
                 pass
     
-    def _get_recent_commits(self, limit: int = 10) -> List[str]:
+    def _get_recent_commits(self, limit: Optional[int] = None) -> List[str]:
         """Get recent commit messages."""
         try:
             commits = list(self.repo.iter_commits(max_count=limit))
             return [
-                (
+                re.sub(r'\s+', ' ', (
                     commit.message if isinstance(commit.message, str)
                     else commit.message.decode("utf-8") if isinstance(commit.message, bytes)
                     else ""
-                ).strip().split("\n")[0]
+                ).strip())
                 for commit in commits
             ]
         except Exception:

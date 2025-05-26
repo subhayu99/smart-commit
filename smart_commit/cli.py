@@ -323,7 +323,17 @@ def _init_config(local: bool) -> None:
     if provider == "openai":
         model = Prompt.ask(
             "OpenAI Model",
-            choices=["gpt-4o", "gpt-4", "gpt-3.5-turbo"],
+            choices=[
+                "o4-mini",
+                "o3-mini",
+                "o1-mini",
+                "o1",
+                "gpt-4.1-nano",
+                "gpt-4.1-mini",
+                "gpt-4o-mini",
+                "gpt-4.1",
+                "gpt-4o",
+            ],
             default="gpt-4o"
         )
         config.ai.model = model
@@ -341,6 +351,22 @@ def _init_config(local: bool) -> None:
         "Use conventional commits format?", 
         default=True
     )
+    
+    include_sample_repo_config = Confirm.ask(
+        "Include sample repository configuration?", 
+        default=False
+    )
+    if include_sample_repo_config:
+        config.repositories = {
+            "{your_repo}": RepositoryConfig(
+                name="{your_repo}",
+                description="{your_repository_description}",
+                absolute_path="{/absolute/path/to/your/repo}",
+                tech_stack=["{tech1}", "{tech2}", "{tech3}"],
+                ignore_patterns=["*.pyc", "__pycache__"],
+                context_files=["README.md"],
+            )
+        }
     
     # Save configuration
     config_manager.save_config(config, local)

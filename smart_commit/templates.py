@@ -1,10 +1,12 @@
 """Commit message templates and formatters."""
 
 from dataclasses import dataclass
+from pathlib import Path 
 from typing import List, Optional
 
 from smart_commit.config import CommitTemplateConfig, RepositoryConfig
 from smart_commit.repository import RepositoryContext
+from smart_commit.utils import remove_backticks
 
 
 @dataclass
@@ -63,6 +65,25 @@ the changes and follows best practices."""
             f"- **Name:** {repo_context.name}",
         ]
         
+        # Determine the repository path
+        repo_path = Path(repo_config.absolute_path) if repo_config and repo_config.absolute_path else Path(".")
+        print(f"Using repository path: {repo_path}")
+        context_parts.append(f"- **Path:** {repo_path.resolve()}")
+        
+        # Include context files only if the repository matches
+        if repo_config and repo_config.context_files and repo_path.exists():
+            context_parts.append("- **Context Files:**")
+            for context_file in repo_config.context_files:
+                file_path = repo_path / context_file
+                if file_path.exists() and file_path.is_file():
+                    try:
+                        content = file_path.read_text(encoding="utf-8").strip()
+                        context_parts.append(f"  - **{context_file}:**\n    ```\n    {content}\n    ```")
+                    except Exception as e:
+                        context_parts.append(f"  - **{context_file}:** (Error reading file: {e})")
+                else:
+                    context_parts.append(f"  - **{context_file}:** (File not found)")
+        
         if repo_context.description:
             context_parts.append(f"- **Description:** {repo_context.description}")
         
@@ -70,8 +91,9 @@ the changes and follows best practices."""
             context_parts.append(f"- **Tech Stack:** {', '.join(repo_context.tech_stack)}")
         
         if isinstance(repo_context.recent_commits, list):
-            context_parts.append("- **Recent Commits:**")
-            for commit in repo_context.recent_commits[:5]:
+            max_recent_commits = max(self.config.max_recent_commits, 0) or 5
+            context_parts.append(f"- **Recent Commits (up to {max_recent_commits}):**")
+            for commit in repo_context.recent_commits[:max_recent_commits]:
                 context_parts.append(f"  - {commit}")
         
         if repo_config and repo_config.commit_conventions:
@@ -97,18 +119,14 @@ the changes and follows best practices."""
         if self.config.conventional_commits:
             requirements.extend([
                 "4. Use appropriate conventional commit prefixes:",
-                "   - `feat:` for new features",
-                "   - `fix:` for bug fixes", 
-                "   - `docs:` for documentation changes",
-                "   - `style:` for formatting changes",
-                "   - `refactor:` for code refactoring",
-                "   - `test:` for test changes",
-                "   - `chore:` for maintenance tasks",
-                "   - `perf:` for performance improvements",
-                "   - `build:` for build system changes",
-                "   - `ci:` for CI/CD changes",
             ])
-        
+
+            # Add custom prefixes if configured
+            if self.config.custom_prefixes:
+                requirements.append("  Custom commit prefixes:")
+                for prefix, description in self.config.custom_prefixes.items():
+                    requirements.append(f"   - `{prefix}:` {description}")
+
         if self.config.max_subject_length:
             requirements.append(f"5. Keep subject line under {self.config.max_subject_length} characters")
         
@@ -122,19 +140,10 @@ the changes and follows best practices."""
     
     def _get_examples_section(self) -> str:
         """Build the examples section."""
+        examples = [f"```\n{example}\n```" for example in self.config.example_formats]
         examples = [
-            "**Example Format:**",
-            "```",
-            "feat: add user authentication system",
-            "",
-            "- Implement JWT-based authentication",
-            "- Add login and logout endpoints", 
-            "- Include password hashing with bcrypt",
-            "- Add authentication middleware for protected routes",
-            "",
-            "This enables secure user sessions and protects sensitive endpoints",
-            "from unauthorized access.",
-            "```"
+            "**Example Formats of Commit Messages (each separated in its own code block):**",
+            *examples,
         ]
         
         return "\n".join(examples)
@@ -152,4 +161,4 @@ class CommitMessageFormatter:
         # - Enforcing length limits
         # - Adding custom prefixes
         # - Reformatting structure
-        return raw_message.strip()
+        return remove_backticks(raw_message.strip())

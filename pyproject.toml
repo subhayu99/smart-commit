@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "smart-commit-ai"
-version = "0.2.0"
+version = "0.2.1"
 description = "🤖 AI-powered git commit message generator with repository context awareness"
 readme = "README.md"
 license = {file = "LICENSE"}

@@ -1,5 +1,6 @@
 """MCP (Model Context Protocol) server implementation using FastMCP."""
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -85,6 +86,18 @@ def generate_commit_message(
         show_prompt: Whether to include the generated prompt in the response
     """
     try:
+        # ...
+        # Load configuration
+        config_manager = ConfigManager()
+        config = config_manager.load_config()
+
+        # Get AI credentials from environment variables first, then from config
+        api_key = os.getenv("AI_API_KEY") or config.ai.api_key
+        model = os.getenv("AI_MODEL") or config.ai.model
+
+        if not api_key or not model:
+            return "Error: AI_MODEL and AI_API_KEY must be set as environment variables or in the config."
+        
         repo_path = Path(repository_path) if repository_path else None
         
         # Get staged changes
@@ -118,9 +131,8 @@ def generate_commit_message(
         
         # Generate commit message
         ai_provider = get_ai_provider(
-            provider_name=config.ai.provider,
-            api_key=config.ai.api_key or "",
-            model=config.ai.model,
+            api_key=api_key,
+            model=model,
             max_tokens=config.ai.max_tokens,
             temperature=config.ai.temperature
         )

@@ -71,7 +71,7 @@ Smart Commit turns your commit history into a valuable project resource that tel
 
 - Python 3.10 or higher
 - Git repository (for generating commit messages)
-- API key for your chosen AI provider (OpenAI or Anthropic)
+- API key for your chosen AI provider (100+ models supported thanks to [LiteLLM](https://litellm.ai))
 
 ### Using uv (Recommended)
 
@@ -100,12 +100,23 @@ pip install smart-commit-ai[all]
 
 ## Quick Setup
 
-```bash
-# Quick setup with OpenAI
-smart-commit setup --provider openai --model gpt-4o --api-key your-api-key
+`smart-commit` is configured primarily through environment variables, which is secure and flexible.
 
-# Or use the short alias
-sc setup --provider openai --model gpt-4o --api-key your-api-key
+```bash
+# Set your AI model and API key
+export AI_MODEL="openai/gpt-4o"  # Or "claude-3-sonnet-20240229", "gemini/gemini-1.5-pro", etc.
+export AI_API_KEY="your-super-secret-api-key"
+
+# You can add these to your .bashrc, .zshrc, or shell profile to make them permanent.
+```
+
+The `AI_MODEL` can be set to any model supported by `litellm`. For a full list of available providers and model names, please refer to the [LiteLLM Provider Documentation](https://docs.litellm.ai/docs/providers).
+
+You can also run the setup command to save a fallback configuration file:
+
+```bash
+# This will guide you through saving a config file.
+smart-commit setup
 ```
 
 ## Usage
@@ -168,7 +179,6 @@ The configuration now includes enhanced features for better commit message gener
 
 ```toml
 [ai]
-provider = "openai"
 model = "gpt-4o"
 api_key = "your-api-key"
 max_tokens = 500

@@ -1,9 +1,6 @@
 """AI provider implementations."""
-
 from abc import ABC, abstractmethod
-
-from openai import OpenAI
-
+import litellm
 from smart_commit.utils import remove_backticks
 
 
@@ -15,54 +12,39 @@ class AIProvider(ABC):
         """Generate a commit message using the AI provider."""
         pass
 
+class LiteLLMProvider(AIProvider):
+    """LiteLLM provider implementation."""
 
-class OpenAIProvider(AIProvider):
-    """OpenAI provider implementation."""
-    
-    def __init__(self, api_key: str, model: str = "gpt-4o", **kwargs):
-        self.client = OpenAI(api_key=api_key)
+    def __init__(self, api_key: str, model: str, **kwargs):
+        if not api_key:
+            raise ValueError("API_KEY is required for LiteLLMProvider.")
+        if not model:
+            raise ValueError("AI_MODEL is required for LiteLLMProvider.")
+        
+        self.api_key = api_key
         self.model = model
         self.kwargs = kwargs
-    
+
     def generate_commit_message(self, prompt: str, **kwargs) -> str:
-        """Generate commit message using OpenAI."""
+        """Generate commit message using LiteLLM."""
         merged_kwargs = {**self.kwargs, **kwargs}
         
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=merged_kwargs.get("max_tokens", 500),
-            temperature=merged_kwargs.get("temperature", 0.1),
-        )
-        
-        return remove_backticks((response.choices[0].message.content or "").strip())
+        try:
+            response = litellm.completion(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=self.api_key,
+                max_tokens=merged_kwargs.get("max_tokens", 500),
+                temperature=merged_kwargs.get("temperature", 0.1),
+            )
+            # The response object is a ModelResponse, which is dict-like
+            return remove_backticks((response.choices[0].message.content or "").strip())
+        except Exception as e:
+            # LiteLLM provides rich exception types, you can handle them specifically if needed
+            # For now, we'll just re-raise a generic error.
+            raise RuntimeError(f"LiteLLM failed to generate a response: {e}") from e
 
-
-class AnthropicProvider(AIProvider):
-    """Anthropic provider implementation (placeholder)."""
-    
-    def __init__(self, api_key: str, model: str = "claude-3-sonnet-20240229", **kwargs):
-        # This would require the anthropic library
-        # import anthropic
-        # self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = model
-        self.kwargs = kwargs
-        raise NotImplementedError("Anthropic provider not implemented yet")
-    
-    def generate_commit_message(self, prompt: str, **kwargs) -> str:
-        """Generate commit message using Anthropic."""
-        # Implementation would go here
-        raise NotImplementedError("Anthropic provider not implemented yet")
-
-
-def get_ai_provider(provider_name: str, api_key: str, model: str, **kwargs) -> AIProvider:
-    """Factory function to get AI provider."""
-    providers = {
-        "openai": OpenAIProvider,
-        "anthropic": AnthropicProvider,
-    }
-    
-    if provider_name not in providers:
-        raise ValueError(f"Unsupported AI provider: {provider_name}")
-    
-    return providers[provider_name](api_key=api_key, model=model, **kwargs)
+def get_ai_provider(api_key: str, model: str, **kwargs) -> AIProvider:
+    """Factory function to get the LiteLLM AI provider."""
+    # The factory is now much simpler.
+    return LiteLLMProvider(api_key=api_key, model=model, **kwargs)

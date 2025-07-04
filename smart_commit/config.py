@@ -70,11 +70,13 @@ class CommitTemplateConfig(BaseModel):
 
 class AIConfig(BaseModel):
     """Configuration for AI provider."""
-    provider: str = Field(default="openai", description="AI provider (openai, anthropic, etc.)")
-    model: str = Field(default="gpt-4o", description="Model to use")
-    api_key: Optional[str] = Field(default=None, description="API key (can be set via environment)")
+    # provider: str = Field(default="openai", description="AI provider (openai, anthropic, etc.)") <- REMOVE
+    model: str = Field(default="openai/gpt-4o", description="Model to use (e.g., 'openai/gpt-4o', 'claude-3-sonnet-20240229')")
+    api_key: Optional[str] = Field(default=None, description="API key (best set via AI_API_KEY environment variable)")
     max_tokens: int = Field(default=500, description="Maximum tokens for response")
     temperature: float = Field(default=0.1, description="Temperature for AI generation")
+    # this field is for backwards compatibility
+    provider: str = Field(default="openai", description="AI provider (openai, anthropic, etc.) [Deprecated]")
 
 
 class RepositoryConfig(BaseModel):

@@ -44,6 +44,19 @@ def generate(
     try:
         # Load configuration
         config = config_manager.load_config()
+
+        # Get AI credentials from environment variables first, then from config
+        api_key = os.getenv("AI_API_KEY") or config.ai.api_key
+        model = os.getenv("AI_MODEL") or config.ai.model
+
+        if not api_key:
+            console.print("[red]Error: AI_API_KEY environment variable or api_key in config not set.[/red]")
+            console.print("Please run `smart-commit setup` or set the environment variable.")
+            raise typer.Exit(1)
+        
+        if not model:
+            console.print("[red]Error: AI_MODEL environment variable or model in config not set.[/red]")
+            raise typer.Exit(1)
         
         # Check for staged changes
         staged_changes = _get_staged_changes()
@@ -86,13 +99,11 @@ def generate(
         
         try:
             ai_provider = get_ai_provider(
-                provider_name=config.ai.provider,
-                api_key=config.ai.api_key or "",
-                model=config.ai.model,
+                api_key=api_key,
+                model=model,
                 max_tokens=config.ai.max_tokens,
                 temperature=config.ai.temperature
             )
-            
             raw_message = ai_provider.generate_commit_message(prompt)
             
             # Format message
@@ -180,20 +191,21 @@ def context(
 
 @app.command()
 def setup(
-    provider: str = typer.Option("openai", help="AI provider (openai, anthropic)"),
-    model: str = typer.Option("gpt-4o", help="Model to use"),
+    model: str = typer.Option("openai/gpt-4o", help="Model to use (e.g., 'openai/gpt-4o', 'claude-3-haiku-20240307')"),
     api_key: Optional[str] = typer.Option(None, help="API key (will prompt if not provided)"),
 ) -> None:
     """Quick setup for smart-commit."""
     
     console.print("[bold blue]Smart-Commit Setup[/bold blue]")
     
+    console.print("This will save your configuration globally. For best practice, use environment variables:")
+    console.print("  [cyan]export AI_MODEL='model_name'[/cyan]")
+    console.print("  [cyan]export AI_API_KEY='your_api_key'[/cyan]")
     if not api_key:
-        api_key = Prompt.ask(f"Enter your {provider.upper()} API key", password=True)
+        api_key = Prompt.ask("Enter your API key", password=True)
     
-    # Create basic config
+    # Save to global config as a fallback
     config = config_manager.load_config()
-    config.ai.provider = provider
     config.ai.model = model
     config.ai.api_key = api_key
     
@@ -201,7 +213,6 @@ def setup(
     config_manager.save_config(config, local=False)
     
     console.print("[green]✓ Configuration saved successfully![/green]")
-    console.print(f"Provider: {provider}")
     console.print(f"Model: {model}")
     console.print(f"Config saved to: {config_manager.global_config_path}")
 

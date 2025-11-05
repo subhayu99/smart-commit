@@ -18,6 +18,7 @@ from rich.table import Table
 
 from smart_commit import __version__
 from smart_commit.ai_providers import get_ai_provider
+from smart_commit.cache import CommitMessageCache
 from smart_commit.config import ConfigManager, GlobalConfig, RepositoryConfig
 from smart_commit.repository import RepositoryAnalyzer, RepositoryContext
 from smart_commit.templates import CommitMessageFormatter, PromptBuilder
@@ -105,6 +106,7 @@ def generate(
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     template: Optional[str] = typer.Option(None, "--template", "-t", help="Use a predefined template (hotfix, feature, docs, refactor, release)"),
     privacy: bool = typer.Option(False, "--privacy", help="Privacy mode: exclude context files and file paths from AI prompt"),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Bypass cache and generate fresh commit message"),
 ) -> None:
     """Generate an AI-powered commit message for staged changes."""
 
@@ -119,6 +121,10 @@ def generate(
     # Privacy mode notification
     if privacy:
         console.print("[yellow]🔒 Privacy mode enabled: Context files and paths will be excluded from AI prompt[/yellow]")
+
+    # Initialize cache
+    cache = CommitMessageCache()
+    logger.debug(f"Cache initialized at {cache.cache_dir}")
 
     try:
         logger.debug("Starting commit message generation")
@@ -266,33 +272,48 @@ def generate(
             console.print("\n[blue]Generated Prompt:[/blue]")
             console.print(Panel(prompt, title="Prompt", border_style="blue"))
 
-        # Generate commit message with progress
-        try:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-                transient=True,
-            ) as progress:
-                task = progress.add_task("[green]Generating commit message with AI...", total=None)
+        # Check cache first (unless --no-cache or privacy mode)
+        commit_message = None
+        if not no_cache and not privacy:
+            logger.debug("Checking cache for existing commit message")
+            commit_message = cache.get(staged_changes, model)
+            if commit_message:
+                console.print("[cyan]💾 Using cached commit message[/cyan]")
+                logger.debug("Cache hit!")
 
-                ai_provider = get_ai_provider(
-                    api_key=api_key,
-                    model=model,
-                    max_tokens=config.ai.max_tokens,
-                    temperature=config.ai.temperature
-                )
-                raw_message = ai_provider.generate_commit_message(prompt)
+        # Generate commit message with progress if not cached
+        if commit_message is None:
+            try:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    task = progress.add_task("[green]Generating commit message with AI...", total=None)
 
-                # Format message
-                formatter = CommitMessageFormatter(config.template)
-                commit_message = formatter.format_message(raw_message)
+                    ai_provider = get_ai_provider(
+                        api_key=api_key,
+                        model=model,
+                        max_tokens=config.ai.max_tokens,
+                        temperature=config.ai.temperature
+                    )
+                    raw_message = ai_provider.generate_commit_message(prompt)
 
-                progress.update(task, completed=True)
+                    # Format message
+                    formatter = CommitMessageFormatter(config.template)
+                    commit_message = formatter.format_message(raw_message)
 
-        except Exception as e:
-            console.print(f"[red]Error generating commit message: {e}[/red]")
-            raise typer.Exit(1)
+                    progress.update(task, completed=True)
+
+                # Store in cache (unless privacy mode)
+                if not privacy:
+                    logger.debug("Storing commit message in cache")
+                    cache.set(staged_changes, model, commit_message)
+
+            except Exception as e:
+                console.print(f"[red]Error generating commit message: {e}[/red]")
+                raise typer.Exit(1)
         
         # Display generated message
         console.print("\n[green]Generated Commit Message:[/green]")
@@ -490,6 +511,46 @@ def uninstall_hook(
     except Exception as e:
         console.print(f"[red]Error uninstalling hook: {e}[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def cache_cmd(
+    clear: bool = typer.Option(False, "--clear", help="Clear all cached commit messages"),
+    stats: bool = typer.Option(False, "--stats", help="Show cache statistics"),
+    clear_expired: bool = typer.Option(False, "--clear-expired", help="Clear expired cache entries only"),
+) -> None:
+    """Manage commit message cache."""
+
+    cache = CommitMessageCache()
+
+    if clear:
+        count = cache.clear()
+        console.print(f"[green]✓ Cleared {count} cached commit message(s)[/green]")
+        console.print(f"[dim]Cache directory: {cache.cache_dir}[/dim]")
+        return
+
+    if clear_expired:
+        count = cache.clear_expired()
+        console.print(f"[green]✓ Cleared {count} expired cache entry(s)[/green]")
+        return
+
+    if stats or not (clear or clear_expired):
+        # Show stats by default
+        stats_data = cache.get_stats()
+
+        table = Table(title="Cache Statistics", show_header=True)
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="white")
+
+        table.add_row("Total Entries", str(stats_data['total_entries']))
+        table.add_row("Cache Size (MB)", str(stats_data['cache_size_mb']))
+        table.add_row("Cache Directory", stats_data['cache_dir'])
+
+        console.print(table)
+
+        if stats_data['total_entries'] > 0:
+            console.print("\n[dim]Tip: Use --clear to clear all cached messages[/dim]")
+            console.print("[dim]Tip: Use --clear-expired to clear only expired entries[/dim]")
 
 
 @app.command()
@@ -850,6 +911,42 @@ Updated packages:
         console.print("\n[green]✓ Committed successfully![/green]")
     else:
         console.print("\n[yellow]Commit cancelled.[/yellow]")
+
+
+# Command aliases for convenience
+@app.command(name="g", hidden=True)
+def g_alias(
+    message: Optional[str] = typer.Option(None, "--message", "-m"),
+    auto_commit: bool = typer.Option(False, "--auto", "-a"),
+    show_diff: bool = typer.Option(True, "--show-diff/--no-diff"),
+    interactive: bool = typer.Option(True, "--interactive/--no-interactive", "-i"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    debug: bool = typer.Option(False, "--debug"),
+    template: Optional[str] = typer.Option(None, "--template", "-t"),
+    privacy: bool = typer.Option(False, "--privacy"),
+    no_cache: bool = typer.Option(False, "--no-cache"),
+):
+    """Alias for 'generate' command."""
+    generate(message, auto_commit, show_diff, interactive, dry_run, verbose, debug, template, privacy, no_cache)
+
+
+@app.command(name="cfg", hidden=True)
+def cfg_alias(
+    init: bool = typer.Option(False, "--init"),
+    edit: bool = typer.Option(False, "--edit"),
+    show: bool = typer.Option(False, "--show"),
+    local: bool = typer.Option(False, "--local"),
+    reset: bool = typer.Option(False, "--reset"),
+):
+    """Alias for 'config' command."""
+    config(init, edit, show, local, reset)
+
+
+@app.command(name="ctx", hidden=True)
+def ctx_alias(repo_path: Optional[Path] = typer.Argument(None)):
+    """Alias for 'context' command."""
+    context(repo_path)
 
 
 if __name__ == "__main__":

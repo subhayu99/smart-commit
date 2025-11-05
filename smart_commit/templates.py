@@ -29,7 +29,8 @@ class PromptBuilder:
         diff_content: str,
         repo_context: RepositoryContext,
         repo_config: Optional[RepositoryConfig] = None,
-        additional_context: Optional[str] = None
+        additional_context: Optional[str] = None,
+        privacy_mode: bool = False
     ) -> str:
         """Build a comprehensive prompt for commit message generation."""
 
@@ -39,16 +40,19 @@ class PromptBuilder:
 
         prompt_parts = [
             self._get_system_prompt(),
-            self._get_repository_context_section(repo_context, repo_config),
+            self._get_repository_context_section(repo_context, repo_config, privacy_mode),
             self._get_scope_suggestions_section(suggested_scopes),
             self._get_breaking_changes_section(breaking_changes),
-            self._get_diff_section(diff_content),
+            self._get_diff_section(diff_content, privacy_mode),
             self._get_requirements_section(),
             self._get_examples_section(),
         ]
 
         if additional_context:
             prompt_parts.append(f"\n**Additional Context:**\n{additional_context}")
+
+        if privacy_mode:
+            prompt_parts.append("\n**NOTE:** Privacy mode is enabled. File paths and context files have been excluded from this prompt.")
 
         prompt_parts.append("*IMPORTANT: Your output should only contain the commit message, nothing else.*")
 
@@ -61,43 +65,45 @@ Analyze the provided git diff and repository context to generate a commit messag
 the changes and follows best practices."""
     
     def _get_repository_context_section(
-        self, 
-        repo_context: RepositoryContext, 
-        repo_config: Optional[RepositoryConfig]
+        self,
+        repo_context: RepositoryContext,
+        repo_config: Optional[RepositoryConfig],
+        privacy_mode: bool = False
     ) -> str:
         """Build repository context section."""
         context_parts = [
             "**Repository Context:**",
             f"- **Name:** {repo_context.name}",
         ]
-        
-        # Determine the repository path
-        repo_path = Path(repo_config.absolute_path) if repo_config and repo_config.absolute_path else Path(".")
-        context_parts.append(f"- **Path:** {repo_path.resolve()}")
-        
-        # Include context files only if the repository matches
-        if repo_config and repo_config.context_files and repo_path.exists():
-            context_parts.append("- **Context Files:**")
-            max_size = self.config.max_context_file_size
 
-            for context_file in repo_config.context_files:
-                file_path = repo_path / context_file
-                if file_path.exists() and file_path.is_file():
-                    try:
-                        # Check file size first
-                        file_size = file_path.stat().st_size
+        if not privacy_mode:
+            # Determine the repository path
+            repo_path = Path(repo_config.absolute_path) if repo_config and repo_config.absolute_path else Path(".")
+            context_parts.append(f"- **Path:** {repo_path.resolve()}")
 
-                        content = file_path.read_text(encoding="utf-8").strip()
+            # Include context files only if the repository matches
+            if repo_config and repo_config.context_files and repo_path.exists():
+                context_parts.append("- **Context Files:**")
+                max_size = self.config.max_context_file_size
 
-                        # Truncate if too large
-                        if len(content) > max_size:
-                            content = content[:max_size] + f"\n\n... (truncated, file is {len(content)} chars, showing first {max_size})"
+                for context_file in repo_config.context_files:
+                    file_path = repo_path / context_file
+                    if file_path.exists() and file_path.is_file():
+                        try:
+                            # Check file size first
+                            file_size = file_path.stat().st_size
 
-                        context_parts.append(f"  - **{context_file}:**\n    ```\n    {content}\n    ```")
-                    except Exception as e:
-                        context_parts.append(f"  - **{context_file}:** (Error reading file: {e})")
-                else:
-                    context_parts.append(f"  - **{context_file}:** (File not found)")
+                            content = file_path.read_text(encoding="utf-8").strip()
+
+                            # Truncate if too large
+                            if len(content) > max_size:
+                                content = content[:max_size] + f"\n\n... (truncated, file is {len(content)} chars, showing first {max_size})"
+
+                            context_parts.append(f"  - **{context_file}:**\n    ```\n    {content}\n    ```")
+                        except Exception as e:
+                            context_parts.append(f"  - **{context_file}:** (Error reading file: {e})")
+                    else:
+                        context_parts.append(f"  - **{context_file}:** (File not found)")
         
         if repo_context.description:
             context_parts.append(f"- **Description:** {repo_context.description}")
@@ -137,8 +143,27 @@ the changes and follows best practices."""
 
 IMPORTANT: If these are truly breaking changes, add a 'BREAKING CHANGE:' footer to your commit message explaining the impact and migration path. This is critical for semantic versioning (triggers major version bump)."""
 
-    def _get_diff_section(self, diff_content: str) -> str:
+    def _get_diff_section(self, diff_content: str, privacy_mode: bool = False) -> str:
         """Build the diff section."""
+        if privacy_mode:
+            # Anonymize file paths in diff
+            lines = diff_content.split('\n')
+            anonymized_lines = []
+            file_counter = 1
+
+            for line in lines:
+                if line.startswith('diff --git'):
+                    anonymized_lines.append(f"diff --git a/file{file_counter} b/file{file_counter}")
+                    file_counter += 1
+                elif line.startswith('---') or line.startswith('+++'):
+                    # Keep the prefix but anonymize the path
+                    prefix = line[:3]
+                    anonymized_lines.append(f"{prefix} [file path redacted]")
+                else:
+                    anonymized_lines.append(line)
+
+            diff_content = '\n'.join(anonymized_lines)
+
         return f"**Git Diff:**\n```diff\n{diff_content}\n```"
     
     def _get_requirements_section(self) -> str:

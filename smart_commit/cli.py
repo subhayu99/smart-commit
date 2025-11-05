@@ -3,6 +3,7 @@
 import logging
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.prompt import Confirm, Prompt
 from rich.syntax import Syntax
 from rich.table import Table
@@ -102,6 +104,7 @@ def generate(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     template: Optional[str] = typer.Option(None, "--template", "-t", help="Use a predefined template (hotfix, feature, docs, refactor, release)"),
+    privacy: bool = typer.Option(False, "--privacy", help="Privacy mode: exclude context files and file paths from AI prompt"),
 ) -> None:
     """Generate an AI-powered commit message for staged changes."""
 
@@ -112,6 +115,10 @@ def generate(
     if template:
         _generate_from_template(template, auto_commit, interactive)
         return
+
+    # Privacy mode notification
+    if privacy:
+        console.print("[yellow]🔒 Privacy mode enabled: Context files and paths will be excluded from AI prompt[/yellow]")
 
     try:
         logger.debug("Starting commit message generation")
@@ -208,11 +215,19 @@ def generate(
 
             console.print("\n[dim]These changes might require a major version bump (semantic versioning).[/dim]")
 
-        # Initialize repository analyzer
-        logger.debug("Analyzing repository context")
-        repo_analyzer = RepositoryAnalyzer()
-        repo_context = repo_analyzer.get_context()
-        logger.debug(f"Repository: {repo_context.name}, Tech stack: {repo_context.tech_stack}")
+        # Initialize repository analyzer with progress
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("[cyan]Analyzing repository context...", total=None)
+            logger.debug("Analyzing repository context")
+            repo_analyzer = RepositoryAnalyzer()
+            repo_context = repo_analyzer.get_context()
+            logger.debug(f"Repository: {repo_context.name}, Tech stack: {repo_context.tech_stack}")
+            progress.update(task, completed=True)
 
         # Get repository-specific config
         repo_config = config.repositories.get(repo_context.name)
@@ -229,35 +244,52 @@ def generate(
         if repo_config and repo_config.ignore_patterns:
             staged_changes = repo_analyzer.filter_diff(staged_changes, repo_config.ignore_patterns)
         
-        # Build prompt
-        prompt_builder = PromptBuilder(config.template)
-        prompt = prompt_builder.build_prompt(
-            diff_content=staged_changes,
-            repo_context=repo_context,
-            repo_config=repo_config,
-            additional_context=message
-        )
-        
+        # Build prompt with progress
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("[cyan]Building prompt from context...", total=None)
+            prompt_builder = PromptBuilder(config.template)
+            prompt = prompt_builder.build_prompt(
+                diff_content=staged_changes,
+                repo_context=repo_context,
+                repo_config=repo_config if not privacy else None,
+                additional_context=message,
+                privacy_mode=privacy
+            )
+            progress.update(task, completed=True)
+
         if verbose:
             console.print("\n[blue]Generated Prompt:[/blue]")
             console.print(Panel(prompt, title="Prompt", border_style="blue"))
-        
-        # Generate commit message
-        console.print("\n[green]Generating commit message...[/green]")
-        
+
+        # Generate commit message with progress
         try:
-            ai_provider = get_ai_provider(
-                api_key=api_key,
-                model=model,
-                max_tokens=config.ai.max_tokens,
-                temperature=config.ai.temperature
-            )
-            raw_message = ai_provider.generate_commit_message(prompt)
-            
-            # Format message
-            formatter = CommitMessageFormatter(config.template)
-            commit_message = formatter.format_message(raw_message)
-            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("[green]Generating commit message with AI...", total=None)
+
+                ai_provider = get_ai_provider(
+                    api_key=api_key,
+                    model=model,
+                    max_tokens=config.ai.max_tokens,
+                    temperature=config.ai.temperature
+                )
+                raw_message = ai_provider.generate_commit_message(prompt)
+
+                # Format message
+                formatter = CommitMessageFormatter(config.template)
+                commit_message = formatter.format_message(raw_message)
+
+                progress.update(task, completed=True)
+
         except Exception as e:
             console.print(f"[red]Error generating commit message: {e}[/red]")
             raise typer.Exit(1)

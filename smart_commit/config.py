@@ -68,6 +68,9 @@ class CommitTemplateConfig(BaseModel):
     custom_prefixes: Dict[str, str] = Field(default=custom_prefixes, description="Custom commit type prefixes")
     example_formats: List[str] = Field(default=example_formats, description="Example commit formats for guidance")
 
+    # Message templates for different scenarios
+    templates: Dict[str, str] = Field(default_factory=dict, description="Predefined templates for common scenarios")
+
 
 class AIConfig(BaseModel):
     """Configuration for AI provider."""

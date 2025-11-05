@@ -19,7 +19,13 @@ from smart_commit.ai_providers import get_ai_provider
 from smart_commit.config import ConfigManager, GlobalConfig, RepositoryConfig
 from smart_commit.repository import RepositoryAnalyzer, RepositoryContext
 from smart_commit.templates import CommitMessageFormatter, PromptBuilder
-from smart_commit.utils import validate_diff_size, count_diff_stats, detect_sensitive_data, check_sensitive_files
+from smart_commit.utils import (
+    validate_diff_size,
+    count_diff_stats,
+    detect_sensitive_data,
+    check_sensitive_files,
+    detect_breaking_changes,
+)
 
 
 def version_callback(value: bool):
@@ -95,11 +101,17 @@ def generate(
     dry_run: bool = typer.Option(False, "--dry-run", help="Generate message without committing"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
+    template: Optional[str] = typer.Option(None, "--template", "-t", help="Use a predefined template (hotfix, feature, docs, refactor, release)"),
 ) -> None:
     """Generate an AI-powered commit message for staged changes."""
 
     # Setup logging
     setup_logging(debug=debug or verbose)
+
+    # Handle template mode
+    if template:
+        _generate_from_template(template, auto_commit, interactive)
+        return
 
     try:
         logger.debug("Starting commit message generation")
@@ -183,6 +195,18 @@ def generate(
             if not Confirm.ask("\n[bold]Are you SURE you want to continue?[/bold]", default=False):
                 console.print("[yellow]Commit cancelled. Please remove sensitive data and try again.[/yellow]")
                 raise typer.Exit(1)
+
+        # Check for breaking changes
+        breaking_changes = detect_breaking_changes(staged_changes)
+        if breaking_changes and verbose:
+            console.print("\n[bold yellow]⚡ Potential Breaking Changes Detected![/bold yellow]")
+            console.print("[yellow]Consider adding 'BREAKING CHANGE:' to your commit message footer.[/yellow]\n")
+
+            for reason, detail in breaking_changes[:5]:  # Show top 5
+                console.print(f"  • [bold]{reason}[/bold]")
+                console.print(f"    [dim]{detail}[/dim]")
+
+            console.print("\n[dim]These changes might require a major version bump (semantic versioning).[/dim]")
 
         # Initialize repository analyzer
         logger.debug("Analyzing repository context")
@@ -664,13 +688,136 @@ def _show_config(local: bool) -> None:
 def _reset_config(local: bool) -> None:
     """Reset configuration to defaults."""
     config_path = config_manager.get_config_path(local)
-    
+
     if config_path.exists():
         if Confirm.ask(f"Reset configuration at {config_path}?"):
             config_path.unlink()
             console.print("[green]✓ Configuration reset.[/green]")
     else:
         console.print("[yellow]No configuration file found.[/yellow]")
+
+
+def _generate_from_template(template_name: str, auto_commit: bool, interactive: bool) -> None:
+    """Generate commit message from a predefined template."""
+
+    # Predefined templates
+    templates = {
+        "hotfix": """hotfix: {brief_description}
+
+Critical bug fix deployed to production.
+
+Issue: {issue_description}
+Impact: {impact}
+Fix: {fix_description}
+
+Tested: {testing_notes}""",
+
+        "feature": """feat: {feature_name}
+
+{feature_description}
+
+Changes:
+- {change_1}
+- {change_2}
+- {change_3}
+
+Benefits:
+- {benefit_1}
+- {benefit_2}""",
+
+        "docs": """docs: {documentation_area}
+
+{description}
+
+Updated:
+- {item_1}
+- {item_2}""",
+
+        "refactor": """refactor: {component_name}
+
+{description}
+
+Changes:
+- {change_1}
+- {change_2}
+
+This refactor improves {improvement_area} without changing external behavior.""",
+
+        "release": """chore(release): {version}
+
+Release version {version}
+
+Changes in this release:
+- {change_1}
+- {change_2}
+- {change_3}
+
+Breaking Changes:
+{breaking_changes_description}""",
+
+        "deps": """build(deps): {dependency_action}
+
+{description}
+
+Updated packages:
+- {package_1}: {old_version} → {new_version}
+- {package_2}: {old_version} → {new_version}""",
+    }
+
+    if template_name not in templates:
+        console.print(f"[red]Error: Unknown template '{template_name}'[/red]")
+        console.print(f"[yellow]Available templates: {', '.join(templates.keys())}[/yellow]")
+        raise typer.Exit(1)
+
+    # Get template
+    template = templates[template_name]
+
+    # Display template
+    console.print(f"\n[bold cyan]Template: {template_name}[/bold cyan]")
+    console.print(Panel(template, title="Commit Message Template", border_style="cyan"))
+
+    console.print("\n[yellow]Fill in the placeholders (text in curly braces).[/yellow]")
+    console.print("[dim]Tip: You can edit the final message in your editor.[/dim]\n")
+
+    # Extract placeholders
+    import re
+    placeholders = re.findall(r'\{([^}]+)\}', template)
+
+    # Ask user to fill in placeholders
+    values = {}
+    for placeholder in placeholders:
+        if placeholder not in values:  # Avoid asking twice for repeated placeholders
+            value = Prompt.ask(f"  {placeholder}")
+            values[placeholder] = value
+
+    # Fill template
+    commit_message = template
+    for placeholder, value in values.items():
+        commit_message = commit_message.replace(f"{{{placeholder}}}", value)
+
+    # Display generated message
+    console.print("\n[green]Generated Commit Message:[/green]")
+    console.print(Panel(commit_message, title="Commit Message", border_style="green"))
+
+    # Interactive editing
+    if interactive and not auto_commit:
+        if Confirm.ask("\nWould you like to edit the message?"):
+            commit_message = _edit_message_interactive(commit_message)
+
+    # Commit logic
+    should_commit = False
+    if auto_commit:
+        should_commit = True
+    elif interactive:
+        should_commit = Confirm.ask("\nProceed with this commit message?")
+    else:
+        should_commit = True
+
+    if should_commit:
+        _perform_commit(commit_message)
+        console.print("\n[green]✓ Committed successfully![/green]")
+    else:
+        console.print("\n[yellow]Commit cancelled.[/yellow]")
 
 
 if __name__ == "__main__":

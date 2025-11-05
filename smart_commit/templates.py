@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from smart_commit.config import CommitTemplateConfig, RepositoryConfig
 from smart_commit.repository import RepositoryContext
-from smart_commit.utils import remove_backticks, detect_scope_from_diff
+from smart_commit.utils import remove_backticks, detect_scope_from_diff, detect_breaking_changes
 
 
 @dataclass
@@ -33,13 +33,15 @@ class PromptBuilder:
     ) -> str:
         """Build a comprehensive prompt for commit message generation."""
 
-        # Detect potential scopes
+        # Detect potential scopes and breaking changes
         suggested_scopes = detect_scope_from_diff(diff_content)
+        breaking_changes = detect_breaking_changes(diff_content)
 
         prompt_parts = [
             self._get_system_prompt(),
             self._get_repository_context_section(repo_context, repo_config),
             self._get_scope_suggestions_section(suggested_scopes),
+            self._get_breaking_changes_section(breaking_changes),
             self._get_diff_section(diff_content),
             self._get_requirements_section(),
             self._get_examples_section(),
@@ -123,6 +125,17 @@ the changes and follows best practices."""
 
         scopes_list = ", ".join(f"`{scope}`" for scope in suggested_scopes)
         return f"**Suggested Scopes (based on changed files):**\n{scopes_list}\n\nConsider using one of these scopes if appropriate for conventional commits."
+
+    def _get_breaking_changes_section(self, breaking_changes: List[tuple]) -> str:
+        """Build the breaking changes warning section."""
+        if not breaking_changes:
+            return ""
+
+        changes_list = "\n".join([f"  - {reason}: {detail}" for reason, detail in breaking_changes[:5]])
+        return f"""**⚡ BREAKING CHANGES DETECTED:**
+{changes_list}
+
+IMPORTANT: If these are truly breaking changes, add a 'BREAKING CHANGE:' footer to your commit message explaining the impact and migration path. This is critical for semantic versioning (triggers major version bump)."""
 
     def _get_diff_section(self, diff_content: str) -> str:
         """Build the diff section."""

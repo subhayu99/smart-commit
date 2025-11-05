@@ -255,3 +255,134 @@ def detect_scope_from_diff(diff_content: str) -> List[str]:
     scopes.discard('')
 
     return sorted(list(scopes))[:5]  # Return top 5 suggestions
+
+
+def detect_breaking_changes(diff_content: str) -> List[Tuple[str, str]]:
+    """
+    Detect potential breaking changes in the diff.
+
+    Args:
+        diff_content: The git diff content
+
+    Returns:
+        List of tuples (reason, detail) for potential breaking changes
+    """
+    breaking_changes = []
+    lines = diff_content.split('\n')
+
+    # Patterns that suggest breaking changes
+    breaking_patterns = {
+        # Function/method signature changes
+        r'^\-\s*def\s+(\w+)\s*\(([^)]*)\)': "Function signature changed",
+        r'^\-\s*public\s+\w+\s+(\w+)\s*\(': "Public method signature changed",
+        r'^\-\s*export\s+(function|class|interface|type)\s+(\w+)': "Exported API changed",
+
+        # API endpoint changes
+        r'^\-\s*@(app|router)\.(get|post|put|delete|patch)\([\'"]([^\'"]+)[\'"]\)': "API endpoint removed/changed",
+        r'^\-\s*(GET|POST|PUT|DELETE|PATCH)\s+/': "HTTP route changed",
+
+        # Database schema changes
+        r'^\-\s*(CREATE|ALTER|DROP)\s+(TABLE|COLUMN)': "Database schema change",
+        r'^\-\s*Column\(': "Database column definition changed",
+
+        # Configuration changes
+        r'^\-\s*(required|mandatory)': "Required field removed",
+        r'^\-\s*class\s+\w+.*\(.*Config': "Configuration class changed",
+
+        # Type/interface changes
+        r'^\-\s*interface\s+(\w+)': "Interface definition changed",
+        r'^\-\s*type\s+(\w+)\s*=': "Type definition changed",
+        r'^\-\s*class\s+(\w+)': "Class definition changed",
+
+        # Dependency changes
+        r'^\-\s*"([^"]+)":\s*"\^?(\d+)\.': "Dependency version changed",
+
+        # Public API removal
+        r'^\-\s*(export|public)\s': "Public API element removed",
+    }
+
+    current_file = None
+
+    for i, line in enumerate(lines):
+        # Track current file
+        if line.startswith('diff --git'):
+            parts = line.split(' ')
+            if len(parts) >= 4:
+                current_file = parts[3][2:]
+
+        # Only check removed lines (potential breaking changes)
+        if line.startswith('-') and not line.startswith('---'):
+            for pattern, reason in breaking_patterns.items():
+                match = re.search(pattern, line)
+                if match:
+                    detail = f"{current_file}: {line[1:].strip()[:80]}"
+                    breaking_changes.append((reason, detail))
+                    break  # Only report first matching pattern per line
+
+    return breaking_changes[:10]  # Limit to first 10 findings
+
+
+def analyze_diff_impact(diff_content: str) -> Dict[str, Any]:
+    """
+    Analyze the overall impact of changes in the diff.
+
+    Args:
+        diff_content: The git diff content
+
+    Returns:
+        Dict with impact analysis:
+        - breaking_changes: List of potential breaking changes
+        - risk_level: 'low', 'medium', or 'high'
+        - affected_areas: List of affected code areas
+        - change_type: 'refactor', 'feature', 'fix', 'docs', etc.
+    """
+    lines = diff_content.split('\n')
+    breaking_changes = detect_breaking_changes(diff_content)
+
+    # Count additions and deletions
+    additions = len([l for l in lines if l.startswith('+') and not l.startswith('+++')])
+    deletions = len([l for l in lines if l.startswith('-') and not l.startswith('---')])
+
+    # Get file types
+    changed_files = []
+    for line in lines:
+        if line.startswith('diff --git'):
+            parts = line.split(' ')
+            if len(parts) >= 4:
+                filename = parts[3][2:]
+                changed_files.append(filename)
+
+    # Determine change type
+    change_type = 'refactor'
+    if any('.md' in f or 'doc' in f.lower() for f in changed_files):
+        change_type = 'docs'
+    elif any('test' in f.lower() for f in changed_files):
+        change_type = 'test'
+    elif additions > deletions * 2:
+        change_type = 'feature'
+    elif deletions > additions * 2:
+        change_type = 'removal'
+    elif breaking_changes:
+        change_type = 'breaking'
+
+    # Determine risk level
+    risk_level = 'low'
+    if breaking_changes:
+        risk_level = 'high'
+    elif deletions > 100 or additions > 500:
+        risk_level = 'high'
+    elif deletions > 50 or additions > 200:
+        risk_level = 'medium'
+
+    # Affected areas
+    affected_areas = detect_scope_from_diff(diff_content)
+
+    return {
+        "breaking_changes": breaking_changes,
+        "risk_level": risk_level,
+        "affected_areas": affected_areas,
+        "change_type": change_type,
+        "additions": additions,
+        "deletions": deletions,
+        "files_changed": len(changed_files),
+    }

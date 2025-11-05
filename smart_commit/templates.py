@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from smart_commit.config import CommitTemplateConfig, RepositoryConfig
 from smart_commit.repository import RepositoryContext
-from smart_commit.utils import remove_backticks
+from smart_commit.utils import remove_backticks, detect_scope_from_diff
 
 
 @dataclass
@@ -32,20 +32,24 @@ class PromptBuilder:
         additional_context: Optional[str] = None
     ) -> str:
         """Build a comprehensive prompt for commit message generation."""
-        
+
+        # Detect potential scopes
+        suggested_scopes = detect_scope_from_diff(diff_content)
+
         prompt_parts = [
             self._get_system_prompt(),
             self._get_repository_context_section(repo_context, repo_config),
+            self._get_scope_suggestions_section(suggested_scopes),
             self._get_diff_section(diff_content),
             self._get_requirements_section(),
             self._get_examples_section(),
         ]
-        
+
         if additional_context:
             prompt_parts.append(f"\n**Additional Context:**\n{additional_context}")
-        
+
         prompt_parts.append("*IMPORTANT: Your output should only contain the commit message, nothing else.*")
-        
+
         return "\n\n".join(filter(None, prompt_parts))
     
     def _get_system_prompt(self) -> str:
@@ -112,6 +116,14 @@ the changes and follows best practices."""
         
         return "\n".join(context_parts)
     
+    def _get_scope_suggestions_section(self, suggested_scopes: List[str]) -> str:
+        """Build the scope suggestions section."""
+        if not suggested_scopes:
+            return ""
+
+        scopes_list = ", ".join(f"`{scope}`" for scope in suggested_scopes)
+        return f"**Suggested Scopes (based on changed files):**\n{scopes_list}\n\nConsider using one of these scopes if appropriate for conventional commits."
+
     def _get_diff_section(self, diff_content: str) -> str:
         """Build the diff section."""
         return f"**Git Diff:**\n```diff\n{diff_content}\n```"

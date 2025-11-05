@@ -176,7 +176,6 @@ def get_staged_changes(repository_path: Optional[str] = None) -> str:
 
 @mcp.tool()
 def configure_smart_commit(
-    provider: Optional[str] = None,
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     max_tokens: Optional[int] = None,
@@ -187,10 +186,9 @@ def configure_smart_commit(
     include_reasoning: Optional[bool] = None
 ) -> str:
     """Configure smart-commit settings.
-    
+
     Args:
-        provider: AI provider (openai or anthropic)
-        model: Model name
+        model: Model name (e.g., 'openai/gpt-4o', 'claude-3-5-sonnet-20241022')
         api_key: API key for the provider
         max_tokens: Maximum tokens for AI response
         temperature: Temperature for AI generation
@@ -200,15 +198,10 @@ def configure_smart_commit(
         include_reasoning: Whether to include reasoning in commit message
     """
     try:
-        if provider and provider not in ["openai", "anthropic"]:
-            return "Error: Provider must be 'openai' or 'anthropic'"
-        
         config_manager = ConfigManager()
         config = config_manager.load_config()
-        
+
         # Update AI configuration
-        if provider:
-            config.ai.provider = provider
         if model:
             config.ai.model = model
         if api_key:
@@ -230,8 +223,8 @@ def configure_smart_commit(
         
         # Save configuration
         config_manager.save_config(config)
-        
-        return f"✓ Smart-commit configuration updated successfully!\nProvider: {config.ai.provider}\nModel: {config.ai.model}"
+
+        return f"✓ Smart-commit configuration updated successfully!\nModel: {config.ai.model}"
         
     except Exception as e:
         return f"Error updating configuration: {str(e)}"
@@ -249,7 +242,6 @@ def show_configuration() -> str:
         return f"""Smart Commit Configuration:
 
 AI Configuration:
-- Provider: {config.ai.provider}
 - Model: {config.ai.model}
 - API Key: {ai_key_display}
 - Max Tokens: {config.ai.max_tokens}
@@ -272,38 +264,31 @@ Config Locations:
 
 @mcp.tool()
 def quick_setup(
-    provider: str = "openai",
-    model: str = "gpt-4o",
+    model: str = "openai/gpt-4o",
     api_key: str = ""
 ) -> str:
     """Quick setup for smart-commit configuration.
-    
+
     Args:
-        provider: AI provider (openai, anthropic)
-        model: Model to use
+        model: Model to use (e.g., 'openai/gpt-4o', 'claude-3-5-sonnet-20241022')
         api_key: API key for the provider
     """
     try:
-        if provider not in ["openai", "anthropic"]:
-            return "Error: Provider must be 'openai' or 'anthropic'"
-        
         if not api_key:
             return "Error: API key is required for setup"
-        
+
         config_manager = ConfigManager()
         config = config_manager.load_config()
-        
-        config.ai.provider = provider
+
         config.ai.model = model
         config.ai.api_key = api_key
-        
+
         # Save global config
         config_manager.save_config(config, local=False)
-        
+
         return f"""✓ Smart-commit setup completed successfully!
 
 Configuration:
-- Provider: {provider}
 - Model: {model}
 - Config saved to: {config_manager.global_config_path}
 
@@ -386,7 +371,6 @@ def get_smart_commit_config() -> str:
         config = config_manager.load_config()
         
         return f"""Smart Commit Configuration:
-AI Provider: {config.ai.provider}
 Model: {config.ai.model}
 Max Tokens: {config.ai.max_tokens}
 Temperature: {config.ai.temperature}

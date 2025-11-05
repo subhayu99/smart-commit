@@ -185,3 +185,73 @@ def check_sensitive_files(diff_content: str) -> List[str]:
                         break
 
     return sensitive_files
+
+
+def detect_scope_from_diff(diff_content: str) -> List[str]:
+    """
+    Detect potential scopes from changed files in the diff.
+
+    Args:
+        diff_content: The git diff content
+
+    Returns:
+        List of suggested scopes based on file paths
+    """
+    lines = diff_content.split('\n')
+    changed_files = []
+
+    for line in lines:
+        if line.startswith('diff --git'):
+            parts = line.split(' ')
+            if len(parts) >= 4:
+                filename = parts[3][2:]  # Remove 'b/' prefix
+                changed_files.append(filename)
+
+    if not changed_files:
+        return []
+
+    # Detect scopes based on file paths
+    scopes = set()
+
+    # Common directory-based scopes
+    for filepath in changed_files:
+        parts = filepath.split('/')
+
+        # Check for common directory patterns
+        if len(parts) > 1:
+            # Check for component/module directories
+            if parts[0] in ['src', 'lib', 'app']:
+                if len(parts) > 1:
+                    scopes.add(parts[1])
+            else:
+                scopes.add(parts[0])
+
+        # Check for specific file patterns
+        if 'test' in filepath.lower():
+            scopes.add('tests')
+        if 'doc' in filepath.lower() or filepath.endswith('.md'):
+            scopes.add('docs')
+        if 'config' in filepath.lower() or filepath.endswith(('.yml', '.yaml', '.toml', '.json', '.ini')):
+            scopes.add('config')
+        if filepath.endswith(('.css', '.scss', '.sass', '.less')):
+            scopes.add('styles')
+        if 'api' in filepath.lower():
+            scopes.add('api')
+        if 'cli' in filepath.lower():
+            scopes.add('cli')
+        if 'ui' in filepath.lower() or 'component' in filepath.lower():
+            scopes.add('ui')
+        if 'db' in filepath.lower() or 'database' in filepath.lower() or 'migration' in filepath.lower():
+            scopes.add('database')
+        if 'auth' in filepath.lower():
+            scopes.add('auth')
+        if 'util' in filepath.lower() or 'helper' in filepath.lower():
+            scopes.add('utils')
+
+    # Remove generic/unhelpful scopes
+    scopes.discard('src')
+    scopes.discard('lib')
+    scopes.discard('app')
+    scopes.discard('')
+
+    return sorted(list(scopes))[:5]  # Return top 5 suggestions

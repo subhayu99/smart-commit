@@ -570,33 +570,16 @@ def _init_config(local: bool) -> None:
     
     # Interactive setup
     console.print("[bold blue]Configuration Setup[/bold blue]")
-    
-    provider = Prompt.ask(
-        "AI Provider", 
-        choices=["openai", "anthropic"], 
-        default="openai"
+    console.print("[dim]Supported models: OpenAI (openai/gpt-4o), Anthropic (claude-3-5-sonnet-20241022), Google (gemini/gemini-1.5-pro), etc.[/dim]")
+    console.print("[dim]See https://docs.litellm.ai/docs/providers for full list[/dim]\n")
+
+    model = Prompt.ask(
+        "AI Model",
+        default="openai/gpt-4o"
     )
-    config.ai.provider = provider
-    
-    if provider == "openai":
-        model = Prompt.ask(
-            "OpenAI Model",
-            choices=[
-                "o4-mini",
-                "o3-mini",
-                "o1-mini",
-                "o1",
-                "gpt-4.1-nano",
-                "gpt-4.1-mini",
-                "gpt-4o-mini",
-                "gpt-4.1",
-                "gpt-4o",
-            ],
-            default="gpt-4o"
-        )
-        config.ai.model = model
-    
-    api_key = Prompt.ask(f"{provider.upper()} API Key", password=True)
+    config.ai.model = model
+
+    api_key = Prompt.ask("API Key", password=True)
     config.ai.api_key = api_key
     
     # Template configuration
@@ -657,9 +640,8 @@ def _show_config(local: bool) -> None:
         table = Table(title="Current Configuration", show_header=True)
         table.add_column("Setting", style="cyan")
         table.add_column("Value", style="white")
-        
+
         # AI Configuration
-        table.add_row("AI Provider", config.ai.provider)
         table.add_row("AI Model", config.ai.model)
         table.add_row("API Key", ("***" + config.ai.api_key[-4:]) if config.ai.api_key else "Not set")
         

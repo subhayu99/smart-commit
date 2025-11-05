@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 def remove_backticks(text: str) -> str:
@@ -7,7 +7,7 @@ def remove_backticks(text: str) -> str:
     return re.sub(r"```\w*\n(.*)\n```", r"\1", text, flags=re.DOTALL)
 
 
-def validate_diff_size(diff_content: str, max_lines: int = 500, max_chars: int = 50000) -> Dict[str, any]:
+def validate_diff_size(diff_content: str, max_lines: int = 500, max_chars: int = 50000) -> Dict[str, Any]:
     """
     Validate diff size and provide warnings.
 

@@ -61,6 +61,7 @@ class CommitTemplateConfig(BaseModel):
     """Configuration for commit message templates."""
     max_subject_length: int = Field(default=50, description="Maximum length for commit subject")
     max_recent_commits: int = Field(default=5, description="Number of recent commits to consider for context")
+    max_context_file_size: int = Field(default=10000, description="Maximum characters to read from context files")
     include_body: bool = Field(default=True, description="Whether to include commit body")
     include_reasoning: bool = Field(default=True, description="Whether to include reasoning section")
     conventional_commits: bool = Field(default=True, description="Use conventional commit format")

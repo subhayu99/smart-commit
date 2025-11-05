@@ -72,11 +72,21 @@ the changes and follows best practices."""
         # Include context files only if the repository matches
         if repo_config and repo_config.context_files and repo_path.exists():
             context_parts.append("- **Context Files:**")
+            max_size = self.config.max_context_file_size
+
             for context_file in repo_config.context_files:
                 file_path = repo_path / context_file
                 if file_path.exists() and file_path.is_file():
                     try:
+                        # Check file size first
+                        file_size = file_path.stat().st_size
+
                         content = file_path.read_text(encoding="utf-8").strip()
+
+                        # Truncate if too large
+                        if len(content) > max_size:
+                            content = content[:max_size] + f"\n\n... (truncated, file is {len(content)} chars, showing first {max_size})"
+
                         context_parts.append(f"  - **{context_file}:**\n    ```\n    {content}\n    ```")
                     except Exception as e:
                         context_parts.append(f"  - **{context_file}:** (Error reading file: {e})")

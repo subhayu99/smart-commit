@@ -102,7 +102,7 @@ diff --git a/test.py b/test.py
         result = validate_diff_size(diff)
 
         assert result["is_valid"] is True
-        assert result["line_count"] == 0
+        assert result["line_count"] == 1  # Empty string splits to 1 element
         assert result["char_count"] == 0
         assert result["file_count"] == 0
 

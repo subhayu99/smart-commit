@@ -84,7 +84,7 @@ the changes and follows best practices."""
             # Include context files only if the repository matches
             if repo_config and repo_config.context_files and repo_path.exists():
                 context_parts.append("- **Context Files:**")
-                max_size = self.config.max_context_file_size
+                max_size = self.config.template.max_context_file_size
 
                 for context_file in repo_config.context_files:
                     file_path = repo_path / context_file
@@ -112,7 +112,7 @@ the changes and follows best practices."""
             context_parts.append(f"- **Tech Stack:** {', '.join(repo_context.tech_stack)}")
         
         if isinstance(repo_context.recent_commits, list):
-            max_recent_commits = max(self.config.max_recent_commits, 0) or 5
+            max_recent_commits = max(self.config.template.max_recent_commits, 0) or 5
             context_parts.append(f"- **Recent Commits (up to {max_recent_commits}):**")
             for commit in repo_context.recent_commits[:max_recent_commits]:
                 context_parts.append(f"  - {commit}")
@@ -175,31 +175,31 @@ IMPORTANT: If these are truly breaking changes, add a 'BREAKING CHANGE:' footer 
             "3. Keep the subject line concise and descriptive",
         ]
         
-        if self.config.conventional_commits:
+        if self.config.template.conventional_commits:
             requirements.extend([
                 "4. Use appropriate conventional commit prefixes:",
             ])
 
             # Add custom prefixes if configured
-            if self.config.custom_prefixes:
+            if self.config.template.custom_prefixes:
                 requirements.append("  Custom commit prefixes:")
-                for prefix, description in self.config.custom_prefixes.items():
+                for prefix, description in self.config.template.custom_prefixes.items():
                     requirements.append(f"   - `{prefix}:` {description}")
 
-        if self.config.max_subject_length:
-            requirements.append(f"5. Keep subject line under {self.config.max_subject_length} characters")
+        if self.config.template.max_subject_length:
+            requirements.append(f"5. Keep subject line under {self.config.template.max_subject_length} characters")
         
-        if self.config.include_body:
+        if self.config.template.include_body:
             requirements.append("6. Include a detailed body explaining the changes")
         
-        if self.config.include_reasoning:
+        if self.config.template.include_reasoning:
             requirements.append("7. Include reasoning for the changes when helpful")
         
         return "\n".join(requirements)
     
     def _get_examples_section(self) -> str:
         """Build the examples section."""
-        examples = [f"```\n{example}\n```" for example in self.config.example_formats]
+        examples = [f"```\n{example}\n```" for example in self.config.template.example_formats]
         examples = [
             "**Example Formats of Commit Messages (each separated in its own code block):**",
             *examples,

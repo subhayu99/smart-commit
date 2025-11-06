@@ -24,13 +24,15 @@ class TestPromptBuilder:
     @pytest.fixture
     def repo_context(self):
         """Create test repository context."""
+        from pathlib import Path
         return RepositoryContext(
             name="test-repo",
+            path=Path("/tmp/test-repo"),
             description="A test repository",
             tech_stack=["python", "pytest"],
             recent_commits=["feat: add feature", "fix: fix bug"],
-            branches=["main", "dev"],
-            current_branch="main"
+            active_branches=["main", "dev"],
+            file_structure={"src": ["main.py"], "tests": ["test_main.py"]}
         )
 
     def test_build_basic_prompt(self, builder, repo_context):
@@ -235,11 +237,12 @@ class TestPrivacyModeFeatures:
         """Create repository context."""
         return RepositoryContext(
             name="confidential-project",
+            path=Path("/tmp/confidential-project"),
             description="Confidential project",
             tech_stack=["python"],
             recent_commits=[],
-            branches=["main"],
-            current_branch="main"
+            active_branches=["main"],
+            file_structure={"src": ["main.py"], "tests": ["test_main.py"]}
         )
 
     def test_privacy_mode_notification(self, builder, repo_context):
@@ -318,11 +321,12 @@ diff --git a/test.py b/test.py
 """
         repo_context = RepositoryContext(
             name="test",
+            path=Path("/tmp/test"),
             description="test",
             tech_stack=[],
             recent_commits=[],
-            branches=[],
-            current_branch="main"
+            active_branches=[],
+            file_structure={"src": ["main.py"], "tests": ["test_main.py"]}
         )
 
         prompt = builder.build_prompt(diff, repo_context)
@@ -338,11 +342,12 @@ Binary files differ
 """
         repo_context = RepositoryContext(
             name="test",
+            path=Path("/tmp/test"),
             description="test",
             tech_stack=[],
             recent_commits=[],
-            branches=[],
-            current_branch="main"
+            active_branches=[],
+            file_structure={"src": ["main.py"], "tests": ["test_main.py"]}
         )
 
         prompt = builder.build_prompt(diff, repo_context)
@@ -360,11 +365,12 @@ Binary files differ
 
         repo_context = RepositoryContext(
             name="test",
+            path=Path("/tmp/test"),
             description="test",
             tech_stack=[],
             recent_commits=[],
-            branches=[],
-            current_branch="main"
+            active_branches=[],
+            file_structure={"src": ["main.py"], "tests": ["test_main.py"]}
         )
 
         prompt = builder.build_prompt(diff, repo_context)
@@ -388,11 +394,12 @@ class TestPromptStructure:
         """Create repository context."""
         return RepositoryContext(
             name="test-repo",
+            path=Path("/tmp/test-repo"),
             description="Test repository",
             tech_stack=["python", "javascript"],
             recent_commits=["feat: add feature", "fix: fix bug"],
-            branches=["main", "dev"],
-            current_branch="main"
+            active_branches=["main", "dev"],
+            file_structure={"src": ["main.py"], "tests": ["test_main.py"]}
         )
 
     def test_prompt_contains_required_sections(self, builder, repo_context):

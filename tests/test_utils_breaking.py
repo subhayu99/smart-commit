@@ -1,6 +1,5 @@
 """Tests for breaking change detection utilities."""
 
-import pytest
 from smart_commit.utils import detect_breaking_changes, analyze_diff_impact
 
 

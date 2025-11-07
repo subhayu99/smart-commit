@@ -1,11 +1,9 @@
 """Tests for configuration management."""
 
 import pytest
-import tempfile
 import toml
-from pathlib import Path
 
-from smart_commit.config import ConfigManager, GlobalConfig, AIConfig
+from smart_commit.config import ConfigManager, GlobalConfig, AIConfig, CommitTemplateConfig, RepositoryConfig
 
 
 class TestConfigManager:
@@ -13,11 +11,9 @@ class TestConfigManager:
     
     def test_load_default_config(self):
         """Test loading default configuration."""
-        config_manager = ConfigManager()
         config = GlobalConfig()
-        
-        assert config.ai.provider == "openai"
-        assert config.ai.model == "gpt-4o"
+
+        assert config.ai.model == "openai/gpt-4o"
         assert config.template.conventional_commits is True
     
     def test_save_and_load_config(self, tmp_path):
@@ -47,20 +43,20 @@ class TestConfigManager:
         config_manager.local_config_path = tmp_path / "local.toml"
         
         # Create global config
-        global_config = {"ai": {"provider": "openai", "model": "gpt-4o"}}
+        global_config = {"ai": {"model": "openai/gpt-4o", "max_tokens": 300}}
         with open(config_manager.global_config_path, 'w') as f:
             toml.dump(global_config, f)
-        
+
         # Create local config
-        local_config = {"ai": {"model": "gpt-3.5-turbo"}}
+        local_config = {"ai": {"model": "openai/gpt-3.5-turbo"}}
         with open(config_manager.local_config_path, 'w') as f:
             toml.dump(local_config, f)
-        
+
         # Load merged config
         config = config_manager.load_config()
-        
-        assert config.ai.provider == "openai"  # From global
-        assert config.ai.model == "gpt-3.5-turbo"  # From local (override)
+
+        assert config.ai.max_tokens == 300  # From global
+        assert config.ai.model == "openai/gpt-3.5-turbo"  # From local (override)
 
 
 class TestConfigValidation:
@@ -69,14 +65,12 @@ class TestConfigValidation:
     def test_max_tokens_validation_too_low(self):
         """Test max_tokens validation with value too low."""
         with pytest.raises(ValueError, match="max_tokens must be between"):
-            config = GlobalConfig()
-            config.ai.max_tokens = 10  # Too low
+            AIConfig(max_tokens=10)  # Too low
 
     def test_max_tokens_validation_too_high(self):
         """Test max_tokens validation with value too high."""
         with pytest.raises(ValueError, match="max_tokens must be between"):
-            config = GlobalConfig()
-            config.ai.max_tokens = 200000  # Too high
+            AIConfig(max_tokens=200000)  # Too high
 
     def test_max_tokens_validation_valid(self):
         """Test max_tokens validation with valid value."""
@@ -88,14 +82,13 @@ class TestConfigValidation:
     def test_temperature_validation_too_low(self):
         """Test temperature validation with value too low."""
         with pytest.raises(ValueError, match="temperature must be between"):
-            config = GlobalConfig()
-            config.ai.temperature = -0.5  # Too low
+            AIConfig(temperature=-0.5)  # Too low
 
     def test_temperature_validation_too_high(self):
         """Test temperature validation with value too high."""
         with pytest.raises(ValueError, match="temperature must be between"):
-            config = GlobalConfig()
-            config.ai.temperature = 3.0  # Too high
+            AIConfig(temperature=3.0)  # Too high
+
 
     def test_temperature_validation_valid(self):
         """Test temperature validation with valid values."""
@@ -114,14 +107,12 @@ class TestConfigValidation:
     def test_max_subject_length_validation_too_short(self):
         """Test max_subject_length validation with value too short."""
         with pytest.raises(ValueError, match="max_subject_length must be between"):
-            config = GlobalConfig()
-            config.template.max_subject_length = 5  # Too short
+            CommitTemplateConfig(max_subject_length=5)  # Too short
 
     def test_max_subject_length_validation_too_long(self):
         """Test max_subject_length validation with value too long."""
         with pytest.raises(ValueError, match="max_subject_length must be between"):
-            config = GlobalConfig()
-            config.template.max_subject_length = 250  # Too long
+            CommitTemplateConfig(max_subject_length=250)  # Too long
 
     def test_max_subject_length_validation_valid(self):
         """Test max_subject_length validation with valid value."""
@@ -133,14 +124,12 @@ class TestConfigValidation:
     def test_max_recent_commits_validation_negative(self):
         """Test max_recent_commits validation with negative value."""
         with pytest.raises(ValueError, match="max_recent_commits must be between"):
-            config = GlobalConfig()
-            config.template.max_recent_commits = -1  # Negative
+            CommitTemplateConfig(max_recent_commits=-1)  # Negative
 
     def test_max_recent_commits_validation_too_high(self):
         """Test max_recent_commits validation with value too high."""
         with pytest.raises(ValueError, match="max_recent_commits must be between"):
-            config = GlobalConfig()
-            config.template.max_recent_commits = 100  # Too high
+            CommitTemplateConfig(max_recent_commits=100)  # Too high
 
     def test_max_recent_commits_validation_valid(self):
         """Test max_recent_commits validation with valid values."""
@@ -158,14 +147,12 @@ class TestConfigValidation:
     def test_max_context_file_size_validation_too_small(self):
         """Test max_context_file_size validation with value too small."""
         with pytest.raises(ValueError, match="max_context_file_size must be between"):
-            config = GlobalConfig()
-            config.template.max_context_file_size = 50  # Too small
+            CommitTemplateConfig(max_context_file_size=50)  # Too small
 
     def test_max_context_file_size_validation_too_large(self):
         """Test max_context_file_size validation with value too large."""
         with pytest.raises(ValueError, match="max_context_file_size must be between"):
-            config = GlobalConfig()
-            config.template.max_context_file_size = 2000000  # Too large
+            CommitTemplateConfig(max_context_file_size=2000000)  # Too large
 
     def test_max_context_file_size_validation_valid(self):
         """Test max_context_file_size validation with valid value."""
@@ -176,21 +163,19 @@ class TestConfigValidation:
 
     def test_absolute_path_validation_not_absolute(self):
         """Test absolute_path validation with relative path."""
-        from smart_commit.config import RepositoryConfig
-
         with pytest.raises(ValueError, match="absolute_path must be an absolute path"):
             RepositoryConfig(
                 name="test",
+                description="Test repo",
                 absolute_path="relative/path",  # Not absolute
                 tech_stack=[]
             )
 
     def test_absolute_path_validation_valid(self, tmp_path):
         """Test absolute_path validation with valid absolute path."""
-        from smart_commit.config import RepositoryConfig
-
         config = RepositoryConfig(
             name="test",
+            description="Test repo",
             absolute_path=str(tmp_path),
             tech_stack=[]
         )
@@ -199,11 +184,10 @@ class TestConfigValidation:
 
     def test_context_files_validation_too_many(self):
         """Test context_files validation with too many files."""
-        from smart_commit.config import RepositoryConfig
-
-        with pytest.raises(ValueError, match="cannot have more than 20 context files"):
+        with pytest.raises(ValueError, match="Too many context_files"):
             RepositoryConfig(
                 name="test",
+                description="Test repo",
                 absolute_path="/tmp/test",
                 tech_stack=[],
                 context_files=[f"file{i}.md" for i in range(25)]  # 25 files
@@ -211,10 +195,9 @@ class TestConfigValidation:
 
     def test_context_files_validation_valid(self):
         """Test context_files validation with valid number."""
-        from smart_commit.config import RepositoryConfig
-
         config = RepositoryConfig(
             name="test",
+            description="Test repo",
             absolute_path="/tmp/test",
             tech_stack=[],
             context_files=[f"file{i}.md" for i in range(10)]  # 10 files
@@ -224,17 +207,15 @@ class TestConfigValidation:
 
     def test_repository_name_validation_empty(self):
         """Test repository name validation with empty name."""
-        from smart_commit.config import RepositoryConfig
-
-        with pytest.raises(ValueError, match="name cannot be empty"):
+        with pytest.raises(ValueError, match="Repository name cannot be empty"):
             RepositoryConfig(
                 name="",  # Empty
+                description="Test repo",
                 absolute_path="/tmp/test",
                 tech_stack=[]
             )
 
     def test_model_validation_empty(self):
         """Test model validation with empty model."""
-        with pytest.raises(ValueError, match="model cannot be empty"):
-            config = GlobalConfig()
-            config.ai.model = ""  # Empty
+        with pytest.raises(ValueError, match="Model name cannot be empty"):
+            AIConfig(model="")  # Empty

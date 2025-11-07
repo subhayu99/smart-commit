@@ -1,10 +1,10 @@
 """Tests for CLI interface."""
 
-import pytest
 from unittest.mock import Mock, patch
 from typer.testing import CliRunner
 
 from smart_commit.cli import app
+from smart_commit.config import GlobalConfig, AIConfig
 
 
 runner = CliRunner()
@@ -42,11 +42,9 @@ class TestCLI:
         mock_ai.generate_commit_message.return_value = "feat: add test feature"
         mock_provider.return_value = mock_ai
         
-        mock_config = Mock()
-        mock_config.ai.provider = "openai"
-        mock_config.ai.api_key = "test-key"
-        mock_config.ai.model = "gpt-4o"
-        mock_config.repositories = {}
+        mock_config = GlobalConfig(
+            ai=AIConfig(api_key="test-key", model="openai/gpt-4o")
+        )
         mock_config_manager.load_config.return_value = mock_config
         
         result = runner.invoke(app, ["generate", "--dry-run"])
@@ -156,11 +154,9 @@ class TestCLI:
         mock_ai.generate_commit_message.return_value = "feat: add test"
         mock_provider.return_value = mock_ai
 
-        mock_config = Mock()
-        mock_config.ai.provider = "openai"
-        mock_config.ai.api_key = "test-key"
-        mock_config.ai.model = "gpt-4o"
-        mock_config.repositories = {}
+        mock_config = GlobalConfig(
+            ai=AIConfig(api_key="test-key", model="openai/gpt-4o")
+        )
         mock_config_manager.load_config.return_value = mock_config
 
         result = runner.invoke(app, ["g", "--dry-run"])
@@ -218,11 +214,9 @@ class TestCLI:
         mock_context.name = "test-repo"
         mock_analyzer.return_value.get_context.return_value = mock_context
 
-        mock_config = Mock()
-        mock_config.ai.provider = "openai"
-        mock_config.ai.api_key = "test-key"
-        mock_config.ai.model = "gpt-4o"
-        mock_config.repositories = {}
+        mock_config = GlobalConfig(
+            ai=AIConfig(api_key="test-key", model="openai/gpt-4o")
+        )
         mock_config_manager.load_config.return_value = mock_config
 
         result = runner.invoke(app, ["generate", "--dry-run"])
@@ -246,11 +240,9 @@ class TestCLI:
         mock_ai.generate_commit_message.return_value = "feat: add feature"
         mock_provider.return_value = mock_ai
 
-        mock_config = Mock()
-        mock_config.ai.provider = "openai"
-        mock_config.ai.api_key = "test-key"
-        mock_config.ai.model = "gpt-4o"
-        mock_config.repositories = {}
+        mock_config = GlobalConfig(
+            ai=AIConfig(api_key="test-key", model="openai/gpt-4o")
+        )
         mock_config_manager.load_config.return_value = mock_config
 
         result = runner.invoke(app, ["generate", "--privacy", "--dry-run"])
@@ -276,11 +268,9 @@ class TestCLI:
         mock_ai.generate_commit_message.return_value = "feat: add feature"
         mock_provider.return_value = mock_ai
 
-        mock_config = Mock()
-        mock_config.ai.provider = "openai"
-        mock_config.ai.api_key = "test-key"
-        mock_config.ai.model = "gpt-4o"
-        mock_config.repositories = {}
+        mock_config = GlobalConfig(
+            ai=AIConfig(api_key="test-key", model="openai/gpt-4o")
+        )
         mock_config_manager.load_config.return_value = mock_config
 
         result = runner.invoke(app, ["generate", "--no-cache", "--dry-run"])

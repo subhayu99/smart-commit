@@ -1,6 +1,5 @@
 """Tests for validation utilities."""
 
-import pytest
 from smart_commit.utils import validate_diff_size, analyze_diff_impact
 
 

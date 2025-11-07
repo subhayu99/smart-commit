@@ -1,6 +1,5 @@
 """Tests for scope detection utilities."""
 
-import pytest
 from smart_commit.utils import detect_scope_from_diff
 
 

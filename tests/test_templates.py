@@ -19,7 +19,7 @@ class TestPromptBuilder:
     @pytest.fixture
     def builder(self, config):
         """Create prompt builder instance."""
-        return PromptBuilder(config)
+        return PromptBuilder(config.template)
 
     @pytest.fixture
     def repo_context(self):
@@ -230,7 +230,7 @@ class TestPrivacyModeFeatures:
     def builder(self):
         """Create prompt builder."""
         config = GlobalConfig()
-        return PromptBuilder(config)
+        return PromptBuilder(config.template)
 
     @pytest.fixture
     def repo_context(self):
@@ -306,7 +306,7 @@ class TestDiffSections:
     def builder(self):
         """Create prompt builder."""
         config = GlobalConfig()
-        return PromptBuilder(config)
+        return PromptBuilder(config.template)
 
     def test_diff_section_formatting(self, builder):
         """Test that diff is properly formatted in prompt."""
@@ -387,7 +387,7 @@ class TestPromptStructure:
     def builder(self):
         """Create prompt builder."""
         config = GlobalConfig()
-        return PromptBuilder(config)
+        return PromptBuilder(config.template)
 
     @pytest.fixture
     def repo_context(self):

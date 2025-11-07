@@ -1,6 +1,5 @@
 """Tests for security-related utilities."""
 
-import pytest
 from smart_commit.utils import (
     detect_sensitive_data,
     check_sensitive_files,
@@ -103,13 +102,13 @@ class TestSensitiveDataDetection:
         # Using test mode keys to avoid GitHub secret detection
         diff = """
 +STRIPE_SECRET_KEY=sk_test_FAKE1234567890abcdefghijklmn
-+STRIPE_PUBLISHABLE_KEY=pk_test_FAKE1234567890abcdefgh
++STRIPE_PUBLISHABLE_KEY=pk_test_FAKE1234567890abcdefghijklmn
 """
         findings = detect_sensitive_data(diff)
 
         assert len(findings) >= 2
-        stripe_findings = [f for f in findings if "Stripe" in f[0] or "API Key" in f[0]]
-        assert len(stripe_findings) >= 1
+        stripe_findings = [f for f in findings if "Stripe" in f[0]]
+        assert len(stripe_findings) >= 2
 
     def test_detect_google_api_key(self):
         """Test detection of Google API keys."""
@@ -301,15 +300,15 @@ class TestPatternCoverage:
             "AWS Access Key",
             "AWS Secret Key",
             "GitHub Token",
-            "API Key",
+            "Generic API Key",
             "JWT Token",
             "Private Key",
             "Database Connection String",
             "Slack Token",
             "Stripe Key",
             "Google API Key",
-            "Bearer Token",
-            "Password",
+            "Generic Bearer Token",
+            "Generic Password",
         ]
 
         for pattern_name in expected_patterns:

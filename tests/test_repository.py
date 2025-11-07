@@ -1,6 +1,5 @@
 """Tests for repository analysis."""
 
-import pytest
 from pathlib import Path
 
 from smart_commit.repository import RepositoryAnalyzer

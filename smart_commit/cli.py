@@ -425,7 +425,7 @@ def generate(
         
         # Interactive editing
         if interactive and not auto_commit:
-            if Confirm.ask("\nWould you like to edit the message?"):
+            if Confirm.ask("\nWould you like to edit the message?", default=False):
                 commit_message = _edit_message_interactive(commit_message)
 
         # Commit or confirm
@@ -434,7 +434,7 @@ def generate(
         if auto_commit:
             should_commit = True
         elif interactive:
-            should_commit = Confirm.ask("\nProceed with this commit message?")
+            should_commit = Confirm.ask("\nProceed with this commit message?", default=True)
         else:
             # Non-interactive mode commits by default
             should_commit = True
@@ -1092,7 +1092,7 @@ Updated packages:
 
     # Interactive editing
     if interactive and not auto_commit:
-        if Confirm.ask("\nWould you like to edit the message?"):
+        if Confirm.ask("\nWould you like to edit the message?", default=False):
             commit_message = _edit_message_interactive(commit_message)
 
     # Commit logic
@@ -1100,7 +1100,7 @@ Updated packages:
     if auto_commit:
         should_commit = True
     elif interactive:
-        should_commit = Confirm.ask("\nProceed with this commit message?")
+        should_commit = Confirm.ask("\nProceed with this commit message?", default=True)
     else:
         should_commit = True
 

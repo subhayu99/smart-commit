@@ -102,7 +102,7 @@ SENSITIVE_PATTERNS = {
     "Slack Token": r"xox[baprs]-[0-9]{10,12}-[0-9]{10,12}-[a-zA-Z0-9]{24,}",
     "Stripe Key": r"(?i)(?:sk|pk)_(live|test)_[0-9a-zA-Z]{24,}",
     "JWT Token": r"eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+",
-    "Database Connection String": r"(?i)(postgres|mysql|mongodb|redis)://[^\s]+",
+    "Database Connection String": r"(?i)(postgres|postgresql|mysql|mongodb|redis)://[^\s]+",
 }
 
 
@@ -202,16 +202,22 @@ def detect_scope_from_diff(diff_content: str) -> List[str]:
 
     for line in lines:
         if line.startswith('diff --git'):
-            parts = line.split(' ')
-            if len(parts) >= 4:
-                filename = parts[3][2:]  # Remove 'b/' prefix
+            # Handle spaces in filenames by looking for 'b/' prefix
+            # Format: diff --git a/path/to/file b/path/to/file
+            b_index = line.find(' b/')
+            if b_index != -1:
+                filename = line[b_index + 3:]  # Skip ' b/'
                 changed_files.append(filename)
 
     if not changed_files:
         return []
 
-    # Detect scopes based on file paths
-    scopes = set()
+    # Detect scopes based on file paths, tracking frequency
+    scope_counts = {}
+
+    def add_scope(scope_name):
+        """Helper to increment scope count."""
+        scope_counts[scope_name] = scope_counts.get(scope_name, 0) + 1
 
     # Common directory-based scopes
     for filepath in changed_files:
@@ -222,39 +228,41 @@ def detect_scope_from_diff(diff_content: str) -> List[str]:
             # Check for component/module directories
             if parts[0] in ['src', 'lib', 'app']:
                 if len(parts) > 1:
-                    scopes.add(parts[1])
+                    add_scope(parts[1])
             else:
-                scopes.add(parts[0])
+                add_scope(parts[0])
 
         # Check for specific file patterns
         if 'test' in filepath.lower():
-            scopes.add('tests')
+            add_scope('tests')
         if 'doc' in filepath.lower() or filepath.endswith('.md'):
-            scopes.add('docs')
+            add_scope('docs')
         if 'config' in filepath.lower() or filepath.endswith(('.yml', '.yaml', '.toml', '.json', '.ini')):
-            scopes.add('config')
+            add_scope('config')
         if filepath.endswith(('.css', '.scss', '.sass', '.less')):
-            scopes.add('styles')
+            add_scope('styles')
         if 'api' in filepath.lower():
-            scopes.add('api')
+            add_scope('api')
         if 'cli' in filepath.lower():
-            scopes.add('cli')
+            add_scope('cli')
         if 'ui' in filepath.lower() or 'component' in filepath.lower():
-            scopes.add('ui')
+            add_scope('ui')
         if 'db' in filepath.lower() or 'database' in filepath.lower() or 'migration' in filepath.lower():
-            scopes.add('database')
+            add_scope('database')
         if 'auth' in filepath.lower():
-            scopes.add('auth')
+            add_scope('auth')
         if 'util' in filepath.lower() or 'helper' in filepath.lower():
-            scopes.add('utils')
+            add_scope('utils')
 
     # Remove generic/unhelpful scopes
-    scopes.discard('src')
-    scopes.discard('lib')
-    scopes.discard('app')
-    scopes.discard('')
+    scope_counts.pop('src', None)
+    scope_counts.pop('lib', None)
+    scope_counts.pop('app', None)
+    scope_counts.pop('', None)
 
-    return sorted(list(scopes))[:5]  # Return top 5 suggestions
+    # Sort by frequency (descending) then alphabetically
+    sorted_scopes = sorted(scope_counts.items(), key=lambda x: (-x[1], x[0]))
+    return [scope for scope, count in sorted_scopes[:5]]  # Return top 5 suggestions
 
 
 def detect_breaking_changes(diff_content: str) -> List[Tuple[str, str]]:

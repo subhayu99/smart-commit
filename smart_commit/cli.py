@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -11,7 +10,7 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.syntax import Syntax
 from rich.table import Table
@@ -113,13 +112,17 @@ def generate(
     # Setup logging
     setup_logging(debug=debug or verbose)
 
+    # Detect git hook mode (non-interactive + dry-run)
+    # In this mode, suppress all UI output and only print the commit message
+    git_hook_mode = not interactive and dry_run
+
     # Handle template mode
     if template:
         _generate_from_template(template, auto_commit, interactive)
         return
 
-    # Privacy mode notification
-    if privacy:
+    # Privacy mode notification (skip in git hook mode)
+    if privacy and not git_hook_mode:
         console.print("[yellow]🔒 Privacy mode enabled: Context files and paths will be excluded from AI prompt[/yellow]")
 
     # Initialize cache
@@ -142,45 +145,108 @@ def generate(
         logger.debug(f"API key configured: {'Yes' if api_key else 'No'}")
 
         if not api_key:
-            console.print("[red]Error: AI_API_KEY environment variable or api_key in config not set.[/red]")
-            console.print("Please run `smart-commit setup` or set the environment variable.")
+            if not git_hook_mode:
+                console.print("[red]Error: AI_API_KEY environment variable or api_key in config not set.[/red]")
+                console.print("Please run `smart-commit setup` or set the environment variable.")
             raise typer.Exit(1)
 
         if not model:
-            console.print("[red]Error: AI_MODEL environment variable or model in config not set.[/red]")
+            if not git_hook_mode:
+                console.print("[red]Error: AI_MODEL environment variable or model in config not set.[/red]")
             raise typer.Exit(1)
 
         # Check for staged changes
         logger.debug("Checking for staged changes")
         staged_changes = _get_staged_changes()
         if not staged_changes:
-            console.print("[yellow]No staged changes found. Stage some changes first with 'git add'.[/yellow]")
+            if not git_hook_mode:
+                console.print("[yellow]No staged changes found. Stage some changes first with 'git add'.[/yellow]")
             raise typer.Exit(1)
 
         logger.debug(f"Found {len(staged_changes)} characters in staged changes")
 
         # Validate diff size
         validation_result = validate_diff_size(staged_changes)
-        if validation_result["warnings"]:
+        stats = count_diff_stats(staged_changes)
+
+        if validation_result["warnings"] and not git_hook_mode:
             console.print("\n[yellow]⚠️  Warnings:[/yellow]")
             for warning in validation_result["warnings"]:
                 console.print(f"  • {warning}")
 
             # Show stats
-            stats = count_diff_stats(staged_changes)
             console.print(f"\n[dim]Stats: {stats['files_changed']} files, "
                          f"+{stats['additions']} -{stats['deletions']} lines[/dim]")
 
+            # Suggest commit splitting for large changes with many files
+            if stats['files_changed'] >= 8 or not validation_result["is_valid"]:
+                from smart_commit.analyzers.commit_splitter import analyze_commit_split, suggest_git_commands
+
+                split_groups = analyze_commit_split(staged_changes)
+                if split_groups and len(split_groups) > 1:
+                    console.print("\n[cyan]💡 Suggestion: Consider splitting into smaller commits:[/cyan]")
+
+                    for i, group in enumerate(split_groups, 1):
+                        console.print(f"\n[bold]Commit {i}: {group.name}[/bold] ({len(group.files)} files)")
+                        console.print(f"[dim]{group.reason}[/dim]")
+                        for file in group.files[:5]:  # Show first 5 files
+                            console.print(f"  • {file}")
+                        if len(group.files) > 5:
+                            console.print(f"  [dim]... and {len(group.files) - 5} more[/dim]")
+
+                    console.print("\n[cyan]To split your commit:[/cyan]")
+                    console.print("  git reset  # Unstage all files")
+
+                    for i, group in enumerate(split_groups, 1):
+                        files_preview = group.files
+                        files_str = " ".join(f'"{f}"' for f in files_preview)
+                        console.print(f"  git add {files_str}")
+                        console.print(f"  git commit  # Commit: {group.name}")
+                        if i < len(split_groups):
+                            console.print()
+
+                    console.print()
+
             if not validation_result["is_valid"]:
-                if not Confirm.ask("\nDiff is quite large. Continue anyway?", default=True):
-                    console.print("[yellow]Cancelled.[/yellow]")
-                    raise typer.Exit(1)
+                if interactive:
+                    if not Confirm.ask("\nDiff is quite large. Continue anyway?", default=True):
+                        console.print("[yellow]Cancelled.[/yellow]")
+                        raise typer.Exit(1)
 
         # Check for sensitive data
         sensitive_data = detect_sensitive_data(staged_changes)
         sensitive_files = check_sensitive_files(staged_changes)
 
         if sensitive_data or sensitive_files:
+            if git_hook_mode:
+                # In git hook mode, write a warning message and exit
+                # This prevents committing secrets while informing the user
+                warning_msg = """# ⚠️  SENSITIVE DATA DETECTED
+
+# smart-commit detected potential sensitive data in your changes:
+#"""
+                if sensitive_files:
+                    warning_msg += "\n# Sensitive files:"
+                    for filename in sensitive_files[:5]:
+                        warning_msg += f"\n#   - {filename}"
+
+                if sensitive_data:
+                    patterns = set(pattern for pattern, _, _ in sensitive_data)
+                    warning_msg += "\n# Potential secrets:"
+                    for pattern in list(patterns)[:5]:
+                        count = sum(1 for p, _, _ in sensitive_data if p == pattern)
+                        warning_msg += f"\n#   - {pattern}: {count} occurrence(s)"
+
+                warning_msg += """
+
+# Please review your changes and:
+# 1. Remove sensitive data and try again, OR
+# 2. Run 'sc generate --auto' to review and override if this is test data, OR
+# 3. Commit manually with 'git commit -m "your message"'
+"""
+                print(warning_msg)
+                raise typer.Exit(1)
+
             console.print("\n[bold red]🔒 Security Warning: Potential sensitive data detected![/bold red]")
 
             if sensitive_files:
@@ -205,8 +271,14 @@ def generate(
             console.print("\n[yellow]⚠️  It's highly recommended to remove sensitive data before committing![/yellow]")
             console.print("[dim]Consider using environment variables or secret management tools.[/dim]")
 
-            if not Confirm.ask("\n[bold]Are you SURE you want to continue?[/bold]", default=False):
-                console.print("[yellow]Commit cancelled. Please remove sensitive data and try again.[/yellow]")
+            if interactive:
+                if not Confirm.ask("\n[bold]Are you SURE you want to continue?[/bold]", default=False):
+                    console.print("[yellow]Commit cancelled. Please remove sensitive data and try again.[/yellow]")
+                    raise typer.Exit(1)
+            else:
+                # In non-interactive mode, abort for safety to prevent committing secrets
+                console.print("\n[red]❌ Aborting in non-interactive mode due to sensitive data detection.[/red]")
+                console.print("[yellow]Remove sensitive data and try again, or run interactively to override.[/yellow]")
                 raise typer.Exit(1)
 
         # Check for breaking changes
@@ -221,44 +293,46 @@ def generate(
 
             console.print("\n[dim]These changes might require a major version bump (semantic versioning).[/dim]")
 
-        # Initialize repository analyzer with progress
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True,
-        ) as progress:
-            task = progress.add_task("[cyan]Analyzing repository context...", total=None)
-            logger.debug("Analyzing repository context")
-            repo_analyzer = RepositoryAnalyzer()
+        # Initialize repository analyzer with progress (unless git hook mode)
+        logger.debug("Analyzing repository context")
+        repo_analyzer = RepositoryAnalyzer()
+
+        if git_hook_mode:
+            # Skip progress UI in git hook mode
             repo_context = repo_analyzer.get_context()
-            logger.debug(f"Repository: {repo_context.name}, Tech stack: {repo_context.tech_stack}")
-            progress.update(task, completed=True)
+        else:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("[cyan]Analyzing repository context...", total=None)
+                repo_context = repo_analyzer.get_context()
+                progress.update(task, completed=True)
+
+        logger.debug(f"Repository: {repo_context.name}, Tech stack: {repo_context.tech_stack}")
 
         # Get repository-specific config
         repo_config = config.repositories.get(repo_context.name)
         if repo_config:
             logger.debug(f"Found repository-specific config for {repo_context.name}")
-        
-        if verbose:
+
+        if verbose and not git_hook_mode:
             _display_context_info(repo_context, repo_config)
-        
-        if show_diff:
+
+        if show_diff and not git_hook_mode:
             _display_diff(staged_changes)
-        
+
         # Filter diff if ignore patterns are configured
         if repo_config and repo_config.ignore_patterns:
             staged_changes = repo_analyzer.filter_diff(staged_changes, repo_config.ignore_patterns)
-        
-        # Build prompt with progress
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True,
-        ) as progress:
-            task = progress.add_task("[cyan]Building prompt from context...", total=None)
-            prompt_builder = PromptBuilder(config.template)
+
+        # Build prompt with progress (unless git hook mode)
+        prompt_builder = PromptBuilder(config.template)
+
+        if git_hook_mode:
+            # Skip progress UI in git hook mode
             prompt = prompt_builder.build_prompt(
                 diff_content=staged_changes,
                 repo_context=repo_context,
@@ -266,7 +340,22 @@ def generate(
                 additional_context=message,
                 privacy_mode=privacy
             )
-            progress.update(task, completed=True)
+        else:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("[cyan]Building prompt from context...", total=None)
+                prompt = prompt_builder.build_prompt(
+                    diff_content=staged_changes,
+                    repo_context=repo_context,
+                    repo_config=repo_config if not privacy else None,
+                    additional_context=message,
+                    privacy_mode=privacy
+                )
+                progress.update(task, completed=True)
 
         if verbose:
             console.print("\n[blue]Generated Prompt:[/blue]")
@@ -278,33 +367,37 @@ def generate(
             logger.debug("Checking cache for existing commit message")
             commit_message = cache.get(staged_changes, model)
             if commit_message:
-                console.print("[cyan]💾 Using cached commit message[/cyan]")
+                if not git_hook_mode:
+                    console.print("[cyan]💾 Using cached commit message[/cyan]")
                 logger.debug("Cache hit!")
 
         # Generate commit message with progress if not cached
         if commit_message is None:
             try:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                    transient=True,
-                ) as progress:
-                    task = progress.add_task("[green]Generating commit message with AI...", total=None)
+                ai_provider = get_ai_provider(
+                    api_key=api_key,
+                    model=model,
+                    max_tokens=config.ai.max_tokens,
+                    temperature=config.ai.temperature
+                )
 
-                    ai_provider = get_ai_provider(
-                        api_key=api_key,
-                        model=model,
-                        max_tokens=config.ai.max_tokens,
-                        temperature=config.ai.temperature
-                    )
+                if git_hook_mode:
+                    # Skip progress UI in git hook mode
                     raw_message = ai_provider.generate_commit_message(prompt)
-
-                    # Format message
                     formatter = CommitMessageFormatter(config.template)
                     commit_message = formatter.format_message(raw_message)
-
-                    progress.update(task, completed=True)
+                else:
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        console=console,
+                        transient=True,
+                    ) as progress:
+                        task = progress.add_task("[green]Generating commit message with AI...", total=None)
+                        raw_message = ai_provider.generate_commit_message(prompt)
+                        formatter = CommitMessageFormatter(config.template)
+                        commit_message = formatter.format_message(raw_message)
+                        progress.update(task, completed=True)
 
                 # Store in cache (unless privacy mode)
                 if not privacy:
@@ -312,13 +405,20 @@ def generate(
                     cache.set(staged_changes, model, commit_message)
 
             except Exception as e:
-                console.print(f"[red]Error generating commit message: {e}[/red]")
+                if not git_hook_mode:
+                    console.print(f"[red]Error generating commit message: {e}[/red]")
                 raise typer.Exit(1)
         
         # Display generated message
+        # In non-interactive + dry-run mode (git hook scenario), output plain message only
+        if not interactive and dry_run:
+            # Output only the commit message for git hook to capture
+            print(commit_message)
+            return
+
         console.print("\n[green]Generated Commit Message:[/green]")
         console.print(Panel(commit_message, title="Commit Message", border_style="green"))
-        
+
         if dry_run:
             console.print("\n[yellow]Dry run mode - no commit performed.[/yellow]")
             return
@@ -346,14 +446,19 @@ def generate(
             console.print("\n[yellow]Commit cancelled.[/yellow]")
             
     except KeyboardInterrupt:
-        console.print("\n[yellow]Cancelled by user.[/yellow]")
+        if not git_hook_mode:
+            console.print("\n[yellow]Cancelled by user.[/yellow]")
         raise typer.Exit(1)
+    except typer.Exit:
+        # Re-raise typer.Exit without printing traceback
+        raise
     except Exception as e:
         import traceback
         def get_trace(e: Exception, n: int = 5):
             """Get the last n lines of the traceback for an exception"""
             return "".join(traceback.format_exception(e)[-n:])
-        console.print(f"\n[red]Error: {get_trace(e)}[/red]")
+        if not git_hook_mode:
+            console.print(f"\n[red]Error: {get_trace(e)}[/red]")
         raise typer.Exit(1)
 
 
@@ -384,15 +489,84 @@ def context(
     repo_path: Optional[Path] = typer.Argument(None, help="Repository path (default: current directory)"),
 ) -> None:
     """Show repository context information."""
-    
+
     try:
         analyzer = RepositoryAnalyzer(repo_path)
         repo_context = analyzer.get_context()
-        
+
         _display_context_info(repo_context, None, detailed=True)
-        
+
     except Exception as e:
         console.print(f"[red]Error analyzing repository: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def analyze(
+    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed file information"),
+) -> None:
+    """Analyze staged changes and suggest commit splitting strategy."""
+
+    try:
+        from smart_commit.analyzers.commit_splitter import analyze_commit_split
+        from smart_commit.utils import count_diff_stats
+
+        # Get staged changes
+        staged_changes = _get_staged_changes()
+        if not staged_changes:
+            console.print("[yellow]No staged changes found. Stage some changes first with 'git add'.[/yellow]")
+            raise typer.Exit(1)
+
+        # Get stats
+        stats = count_diff_stats(staged_changes)
+
+        console.print("\n[bold]Staged Changes Analysis[/bold]")
+        console.print(f"Files: {stats['files_changed']}")
+        console.print(f"Lines: +{stats['additions']} -{stats['deletions']}")
+
+        # Analyze split suggestions
+        split_groups = analyze_commit_split(staged_changes)
+
+        if not split_groups or len(split_groups) <= 1:
+            console.print("\n[green]✓ Current changes are well-scoped for a single commit![/green]")
+            if stats['files_changed'] <= 5:
+                console.print("[dim]The number of files is reasonable for one commit.[/dim]")
+            return
+
+        console.print(f"\n[cyan]💡 Detected {len(split_groups)} logical commit groups:[/cyan]")
+
+        for i, group in enumerate(split_groups, 1):
+            console.print(f"\n[bold]Group {i}: {group.name}[/bold] ({len(group.files)} files)")
+            console.print(f"[dim]└─ {group.reason}[/dim]")
+
+            if detailed:
+                for file in group.files:
+                    console.print(f"   • {file}")
+            else:
+                for file in group.files[:3]:
+                    console.print(f"   • {file}")
+                if len(group.files) > 3:
+                    console.print(f"   [dim]... and {len(group.files) - 3} more files[/dim]")
+
+        console.print("\n[cyan]Suggested workflow:[/cyan]")
+        console.print("  1. [bold]git reset[/bold]  # Unstage all files")
+        console.print()
+
+        for i, group in enumerate(split_groups, 1):
+            console.print(f"  {i}. Stage and commit {group.name}:")
+            files_sample = group.files[:2]
+            files_str = " ".join(f'"{f}"' for f in files_sample)
+            if len(group.files) > 2:
+                files_str += " ..."
+            console.print(f"     git add {files_str}")
+            console.print(f"     sc generate  # or: git commit")
+            if i < len(split_groups):
+                console.print()
+
+        console.print()
+
+    except Exception as e:
+        console.print(f"[red]Error analyzing changes: {e}[/red]")
         raise typer.Exit(1)
 
 
@@ -437,8 +611,33 @@ COMMIT_SOURCE=$2
 
 # Only run if commit source is not provided (i.e., user didn't use -m)
 if [ -z "$COMMIT_SOURCE" ]; then
-    # Generate commit message
-    smart-commit generate --no-interactive --dry-run > "$COMMIT_MSG_FILE" 2>/dev/null || true
+    # Generate commit message and capture it in a temp file
+    TEMP_MSG=$(mktemp)
+
+    # Try to generate the commit message
+    # Both stdout and stderr go to the temp file
+    smart-commit generate --no-interactive --dry-run > "$TEMP_MSG" 2>&1
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        # Success - use the generated message if it's not empty
+        if [ -s "$TEMP_MSG" ]; then
+            cat "$TEMP_MSG" > "$COMMIT_MSG_FILE"
+        fi
+    else
+        # Failed - check if there's a warning message to show
+        if [ -s "$TEMP_MSG" ] && grep -q "^#" "$TEMP_MSG"; then
+            # Output contains comments (e.g., sensitive data warning), use it
+            cat "$TEMP_MSG" > "$COMMIT_MSG_FILE"
+        else
+            # Generic failure, show stderr message
+            echo "# smart-commit: Failed to generate commit message" > "$COMMIT_MSG_FILE"
+            echo "# You can write your commit message manually below" >> "$COMMIT_MSG_FILE"
+            echo "" >> "$COMMIT_MSG_FILE"
+        fi
+    fi
+
+    rm -f "$TEMP_MSG"
 fi
 """
         elif hook_type == "post-commit":
@@ -458,13 +657,12 @@ echo "✓ Commit created successfully!"
         hook_path.write_text(hook_content)
         hook_path.chmod(0o755)  # Make executable
 
-        console.print(f"[green]✓ Git hook installed successfully![/green]")
+        console.print("[green]✓ Git hook installed successfully![/green]")
         console.print(f"Hook: {hook_path}")
         console.print(f"Type: {hook_type}")
 
         if hook_type == "prepare-commit-msg":
-            console.print("\n[dim]The hook will automatically generate commit messages")
-            console.print("when you run 'git commit' without the -m flag.[/dim]")
+            console.print("\n[dim]The hook will automatically generate commit messages\nwhen you run 'git commit' without the -m flag.[/dim]")
 
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -503,7 +701,7 @@ def uninstall_hook(
                 return
 
         hook_path.unlink()
-        console.print(f"[green]✓ Hook removed successfully![/green]")
+        console.print("[green]✓ Hook removed successfully![/green]")
 
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import toml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 custom_prefixes = {
@@ -265,9 +265,9 @@ class ConfigManager:
             msg += "Hint: Maximum 20 context files allowed. Reduce the number in your config.\n"
 
         # Add config file locations
-        msg += f"\nConfig files:\n"
+        msg += "\nConfig files:\n"
         msg += f"  Global: {self.global_config_path}\n"
         msg += f"  Local: {self.local_config_path}\n"
-        msg += f"\nTo fix: Edit the config file or run 'smart-commit config --reset' to reset."
+        msg += "\nTo fix: Edit the config file or run 'smart-commit config --reset' to reset."
 
         return msg

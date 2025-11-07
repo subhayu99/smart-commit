@@ -64,6 +64,11 @@ Smart Commit turns your commit history into a valuable project resource that tel
 - 📝 **Interactive Editing**: Edit generated messages before committing
 - 🏗️ **Context Files**: Include project documentation for enhanced understanding
 - 🎨 **Custom Templates**: Configurable commit message formats and examples
+- 🪝 **Git Hooks**: Automatic commit message generation via git hooks
+- 🔒 **Security**: Sensitive data detection to prevent committing secrets
+- 📊 **Commit Splitting**: Smart analysis suggesting how to split large commits
+- 💾 **Caching**: Cache commit messages to speed up repeated generations
+- 🔐 **Privacy Mode**: Exclude file paths and context files from AI prompts
 
 ## Installation
 
@@ -165,6 +170,98 @@ smart-commit context
 # Shows detailed information about a specific repository
 smart-commit context /path/to/repo
 ```
+
+### Commit Splitting Analysis
+
+Analyze staged changes and get suggestions for splitting into logical commits:
+
+```bash
+# Analyze and suggest commit groups
+smart-commit analyze
+# Alias: sc analyze
+
+# Show detailed file information for each group
+smart-commit analyze --detailed
+```
+
+Example output:
+```
+Staged Changes Analysis
+Files: 12
+Lines: +283 -210
+
+💡 Detected 2 logical commit groups:
+
+Group 1: Source Changes (4 files)
+└─ Related source code functionality changes
+   • smart_commit/cli.py
+   • smart_commit/config.py
+   • smart_commit/templates.py
+   • smart_commit/utils.py
+
+Group 2: Tests (8 files)
+└─ Separate test changes for easier review and CI validation
+   • tests/test_cli.py
+   • tests/test_config.py
+   ... and 6 more files
+
+Suggested workflow:
+  1. git reset  # Unstage all files
+
+  1. Stage and commit Source Changes:
+     git add "smart_commit/cli.py" "smart_commit/config.py" ...
+     sc generate
+
+  2. Stage and commit Tests:
+     git add "tests/test_cli.py" "tests/test_config.py" ...
+     sc generate
+```
+
+### Git Hooks Integration
+
+Install git hooks for automatic commit message generation:
+
+```bash
+# Install prepare-commit-msg hook
+smart-commit install-hook
+# Alias: sc install-hook
+
+# Install with force (overwrites existing hook)
+smart-commit install-hook --force
+
+# Uninstall hook
+smart-commit uninstall-hook
+```
+
+Once installed, running `git commit` (without `-m`) will automatically generate a commit message using smart-commit.
+
+**Security Note**: The hook automatically detects potential sensitive data (API keys, tokens, etc.) and will warn you before committing.
+
+### Cache Management
+
+Smart-commit caches generated messages to improve performance:
+
+```bash
+# View cache statistics
+smart-commit cache stats
+
+# Clear all cached messages
+smart-commit cache clear
+
+# Clear expired cache entries only
+smart-commit cache clear-expired
+```
+
+### Privacy Mode
+
+Exclude file paths and context files from AI prompts:
+
+```bash
+# Generate with privacy mode
+smart-commit generate --privacy
+```
+
+This is useful when working on sensitive codebases or when you want to minimize data sent to AI providers.
 
 ## Configuration
 
@@ -305,6 +402,56 @@ Add to your MCP client configuration (e.g., Claude Desktop):
 - `repository_analysis_prompt`: Template for repository analysis
 
 ## Advanced Features
+
+### Security: Sensitive Data Detection
+
+Smart-commit automatically scans your staged changes for potential secrets and sensitive data:
+
+**Detected patterns:**
+
+- API keys (AWS, GitHub, Stripe, Google, etc.)
+- Authentication tokens (JWT, Bearer tokens, OAuth)
+- Private keys and certificates
+- Database connection strings
+- Passwords and secrets
+- Sensitive files (.env, credentials.json, private keys, etc.)
+
+When sensitive data is detected:
+
+```bash
+# Interactive mode - prompts for confirmation
+smart-commit generate
+
+# Git hook mode - shows warning in commit message editor
+git commit  # Opens editor with warning message
+
+# Non-interactive mode - aborts automatically
+smart-commit generate --no-interactive --dry-run
+```
+
+Example warning in git hook:
+
+```
+# ⚠️  SENSITIVE DATA DETECTED
+#
+# smart-commit detected potential sensitive data in your changes:
+#
+# Potential secrets:
+#   - AWS Access Key: 1 occurrence(s)
+#   - Generic API Key: 2 occurrence(s)
+#
+# Please review your changes and:
+# 1. Remove sensitive data and try again, OR
+# 2. Run 'sc generate --auto' to review and override if this is test data, OR
+# 3. Commit manually with 'git commit -m "your message"'
+```
+
+**Best practices:**
+
+- Use environment variables for secrets
+- Add sensitive files to `.gitignore`
+- Use secret management tools (Vault, AWS Secrets Manager, etc.)
+- Override warnings only for test/mock data
 
 ### Custom Ignore Patterns
 
@@ -562,16 +709,26 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Roadmap
 
+### Completed ✅
+- [x] Git hooks integration
+- [x] Support for 100+ AI models via LiteLLM (OpenAI, Anthropic, Google, etc.)
+- [x] Commit message caching for performance
+- [x] Sensitive data detection
+- [x] Privacy mode
+- [x] Commit splitting analysis
+- [x] Command aliases (e.g., `sc` for `smart-commit`)
+
+### Planned 🚧
 - [ ] Plugin system for custom commit message formats
 - [ ] Integration with popular Git GUIs
-- [ ] Commit message templates and presets
+- [ ] Pre-commit hook integration
 - [ ] Team/organization shared configurations
 - [ ] Webhook support for CI/CD integration
 - [ ] VS Code extension
-- [ ] Git hooks integration
-- [ ] Support for more AI models (Gemini, local models)
 - [ ] Commit message quality scoring
-- [ ] Integration with issue tracking systems
+- [ ] Integration with issue tracking systems (GitHub, Jira, etc.)
+- [ ] Commit message validation and linting
+- [ ] AI-powered code review suggestions
 
 ## Support
 

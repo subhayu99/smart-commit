@@ -3,6 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/smart-commit-ai.svg)](https://badge.fury.io/py/smart-commit-ai)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://pepy.tech/badge/smart-commit-ai)](https://pepy.tech/project/smart-commit-ai)
 
 An AI-powered git commit message generator with repository context awareness, built with Python and Typer.
 
